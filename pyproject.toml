@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-harness"
+version = "0.1.0"
+description = "Provider-neutral bounded multi-agent orchestration harness"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+agent-harness = "mam:main"
+mam = "mam:main"
+agent-harness-mcp = "execution.context_server:main"
+
+[tool.setuptools]
+py-modules = ["mam"]
+packages = ["execution", "examples", "demo", "memory"]
+
+[tool.setuptools.package-data]
+examples = ["*.json"]
+memory = ["*.md"]

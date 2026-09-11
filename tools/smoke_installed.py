@@ -1,0 +1,33 @@
+"""Run the bundled demo through an already-installed Agent Harness package."""
+
+from pathlib import Path
+import os
+import subprocess
+import sys
+import tempfile
+
+
+def main():
+    with tempfile.TemporaryDirectory(prefix="agent-harness-smoke-") as tmp:
+        root = Path(tmp)
+        env = os.environ.copy()
+        for key in list(env):
+            if key.startswith("MAM_") or key.startswith("AGENT_HARNESS_"):
+                env.pop(key, None)
+        env["HOME"] = str(root / "home")
+        env["USERPROFILE"] = str(root / "home")
+        env["AGENT_HARNESS_MEMORY"] = str(root / "memory")
+        env["AGENT_HARNESS_SHARED"] = str(root / "shared")
+        env["AGENT_HARNESS_RUNS"] = str(root / "runs")
+        result = subprocess.run([sys.executable, "-m", "mam", "ask", "demo-worker", "smoke"],
+                                cwd=root, env=env, capture_output=True, text=True,
+                                encoding="utf-8", shell=False, timeout=30)
+        if result.returncode:
+            raise SystemExit(result.stderr or result.stdout)
+        if "DEMO PROVIDER" not in result.stdout:
+            raise SystemExit("installed demo provider did not run")
+        print(result.stdout.strip())
+
+
+if __name__ == "__main__":
+    main()

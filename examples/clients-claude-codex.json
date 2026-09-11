@@ -1,0 +1,21 @@
+{
+  "claude": {
+    "skills_dir": ".claude/skills",
+    "instructions_file": ".claude/AGENTS.md",
+    "include_file": ".claude/CLAUDE.md",
+    "include_template": "@{path}\n",
+    "mcp": {"format": "json", "path": ".claude.json", "keys": ["mcpServers", "agent_harness"]},
+    "hook": {"format": "json", "path": ".claude/settings.json", "keys": ["hooks", "PreToolUse"], "matcher": "Read|Bash"}
+  },
+  "codex": {
+    "skills_dir": ".codex/skills",
+    "instructions_file": ".codex/AGENTS.md",
+    "mcp": {
+      "format": "config_fragment",
+      "path": ".codex/config.toml",
+      "marker": "agent-harness",
+      "template": "[mcp_servers.{name}]\ncommand = {command_json}\nargs = {args_json}\nstartup_timeout_sec = 30\n[mcp_servers.{name}.env]\n{env_lines}"
+    },
+    "hook": {"format": "json", "path": ".codex/hooks.json", "keys": ["hooks", "PreToolUse"], "matcher": "Bash"}
+  }
+}

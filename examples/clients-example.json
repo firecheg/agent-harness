@@ -1,0 +1,17 @@
+{
+  "editor-a": {
+    "skills_dir": ".editor-a/skills",
+    "instructions_file": ".editor-a/AGENTS.md",
+    "mcp": {"format": "json", "path": ".editor-a/mcp.json", "keys": ["mcpServers", "agent_harness"]}
+  },
+  "editor-z": {
+    "skills_dir": ".editor-z/skills",
+    "instructions_file": ".editor-z/AGENTS.md",
+    "mcp": {
+      "format": "config_fragment",
+      "path": ".editor-z/config.toml",
+      "marker": "agent-harness",
+      "template": "[mcp_servers.{name}]\ncommand = {command_json}\nargs = {args_json}\nstartup_timeout_sec = 30\n[mcp_servers.{name}.env]\n{env_lines}"
+    }
+  }
+}
