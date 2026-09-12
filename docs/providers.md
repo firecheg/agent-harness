@@ -38,6 +38,29 @@ identity: two aliases sharing `author_identity` are still one author. A
 profile may override the provider identity with its own `author_identity` when
 two configured accounts are genuinely independent.
 
+The order of an author's `reviewers` list is a preference: the first
+installed, independent entry is the primary reviewer, the next ones follow.
+`review_policy` constrains the primary:
+
+```json
+"review_policy": {"primary": "other_provider"}
+```
+
+* `independent` (default): any reviewer with another author identity may be
+  primary.
+* `other_provider`: the primary reviewer must also run on a different
+  provider than the author. Later reviewers only need another identity, so a
+  second model on the author's own provider can still be the second reader.
+  With no installed cross-provider candidate, selection fails closed.
+
+The policy applies wherever the harness picks a reviewer itself: `review`
+without `--by`, a `verify` block without `by`, and graph agents written as
+`reviewer:1`, `reviewer:2`, ... A `reviewer:N` node must declare `review_of`
+(or appear as `verify.by`, meaning the node's own author); it resolves after
+roles bind, so a fallback in the author's role chain also changes who reviews.
+Explicitly named reviewers are taken as written, subject only to the identity
+rule.
+
 For an arbitrary third-party CLI, copy `examples/third-party-config.json`,
 replace its `argv` with the CLI and worker path, and keep the worker's prompt
 input on stdin. Declaring only the reasoning levels the model actually
