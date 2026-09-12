@@ -41,7 +41,8 @@ def register(project, graph, snapshot):
     if not project.is_absolute() or not project.is_dir() or not graph.is_absolute() or not graph.is_file():
         raise ValueError('existing absolute project and graph paths required')
     project=project.resolve();graph=graph.resolve()
-    if not graph.is_relative_to(shared_root()/'skills') and not graph.is_relative_to(project):
+    allowed = (shared_root() / 'skills').resolve()
+    if not graph.is_relative_to(allowed) and not graph.is_relative_to(project):
         raise ValueError('graph must be inside shared skills or the project')
     if not snapshot.strip(): raise ValueError('snapshot date and source commit required')
     path=shared_root()/'indexes.json'
@@ -54,8 +55,9 @@ def register(project, graph, snapshot):
 
 
 def graph_context(project, question, entry):
+    project = Path(project).resolve()
     graph=Path(entry['graph']).resolve(strict=True)
-    allowed=shared_root()/'skills'
+    allowed=(shared_root()/'skills').resolve()
     if not graph.is_relative_to(allowed) and not graph.is_relative_to(project):
         raise ValueError('registered graph must be inside shared skills or this project')
     sha=hashlib.sha256(graph.read_bytes()).hexdigest()

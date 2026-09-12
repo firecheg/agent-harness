@@ -58,7 +58,8 @@ class MigrationTests(unittest.TestCase):
     def test_plan_is_read_only_for_explicit_generic_clients(self):
         plan = module.plan(self.home, self.shared, self.mam, self.clients)
         self.assertFalse(self.shared.exists())
-        self.assertEqual(plan['skills']['demo']['source'], str(self.home / '.alpha/skills/demo'))
+        self.assertEqual(plan['skills']['demo']['source'],
+                         str((self.home / '.alpha/skills/demo').resolve()))
         self.assertEqual(plan['conflicts'], [])
         self.assertEqual(plan['clients'], ['alpha', 'beta'])
 
