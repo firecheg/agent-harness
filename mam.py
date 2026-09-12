@@ -303,6 +303,40 @@ def role_chain(roles, role):
     return [] if v is None else ([v] if isinstance(v, str) else list(v))
 
 
+# `reviewer:1` is the primary reviewer of whoever authored the node named by
+# `review_of` (or, in `verify.by`, of the node's own agent); `reviewer:2` the
+# next independent one. They resolve after roles bind, so a fallback in the
+# author's chain also changes who reviews.
+REVIEWER_REF = re.compile(r"reviewer:([1-9])")
+
+
+def _bind_reviewer_refs(bound):
+    nodes = {m["id"]: m for n in bound["nodes"] for m in (_sub_nodes(n) or [n])}
+    # Decided before anything resolves, so the answer does not depend on node order.
+    unresolved = {i for i, m in nodes.items() if REVIEWER_REF.fullmatch(str(m["agent"]))}
+
+    def reviewer(ref, author, where, author_node=None):
+        if author_node in unresolved:
+            raise ValueError(f"{where}: reviews {author_node!r}, whose agent is itself a reviewer "
+                             f"reference; name an agent or role there")
+        rank = int(REVIEWER_REF.fullmatch(ref).group(1))
+        try:
+            return pick_reviewers(author, rank)[rank - 1]
+        except (AgentError, ProviderConfigError) as exc:
+            raise ValueError(f"{where}: cannot resolve {ref!r} for author {author!r}: {exc}") from exc
+
+    for m in nodes.values():
+        if REVIEWER_REF.fullmatch(str(m["agent"])):
+            target = m.get("review_of")
+            if target not in nodes:
+                raise ValueError(f"{m['id']}: agent {m['agent']!r} needs review_of naming the reviewed node")
+            m["agent"] = reviewer(m["agent"], nodes[target]["agent"], m["id"], target)
+    for m in nodes.values():
+        v = m.get("verify")
+        if v and REVIEWER_REF.fullmatch(str(v.get("by", ""))):
+            v["by"] = reviewer(v["by"], m["agent"], f"{m['id']}.verify.by")
+
+
 def _author_key(agent):
     try:
         return REGISTRY.identity(agent)
@@ -320,7 +354,7 @@ def bind_roles(spec, roles=None):
     bound = json.loads(json.dumps(spec))
 
     def bind(name, where):
-        if name in CFG["agents"]:
+        if name in CFG["agents"] or REVIEWER_REF.fullmatch(str(name)):
             return name
         chain = role_chain(roles, name)
         if chain:
@@ -343,6 +377,7 @@ def bind_roles(spec, roles=None):
             v = m.get("verify")
             if v and v.get("by"):
                 v["by"] = bind(v["by"], f"{m['id']}.verify.by")
+    _bind_reviewer_refs(bound)
     # Roles that must not collapse onto one author. review_of covers the pairs
     # that have an edge in the graph; this covers the rest — "the prosecutor
     # wrote neither the spec nor the code" is a rule about three nodes, not an
@@ -404,15 +439,36 @@ def _same_identity(a, b):
 
 
 def pick_reviewer(author, exclude=()):
-    """First installed, independently-identified agent. Enforces no-self-review,
-    including a different alias that shares the author's provider identity."""
+    """The primary reviewer: first installed, independently-identified agent
+    in the author's `reviewers` order that also satisfies `review_policy`.
+    Enforces no-self-review, including a different alias that shares the
+    author's identity."""
     banned = {author, *exclude}
     for cand in REGISTRY.reviewer_candidates(author):
-        if cand in banned:
+        if cand in banned or not REGISTRY.primary_allowed(author, cand):
             continue
         if installed(cand):
             return cand
-    raise AgentError(f"no installed cross-reviewer for {author!r} (author is never eligible)")
+    policy = CFG.get("review_policy", {}).get("primary", "independent")
+    raise AgentError(f"no installed cross-reviewer for {author!r} (author is never eligible"
+                     + (", and the primary reviewer must use another provider)"
+                        if policy == "other_provider" else ")"))
+
+
+def pick_reviewers(author, count):
+    """Primary reviewer, then further independent installed reviewers in the
+    author's `reviewers` order. The policy constrains only the primary."""
+    primary = pick_reviewer(author)
+    picked = [primary]
+    for cand in REGISTRY.reviewer_candidates(author):
+        if len(picked) == count:
+            break
+        if cand not in picked and installed(cand):
+            picked.append(cand)
+    if len(picked) < count:
+        raise AgentError(f"{author!r} has {len(picked)} installed independent reviewer(s); "
+                         f"{count} requested")
+    return picked
 
 
 def run_agent(agent, prompt, node_dir, timeout=None, sandbox=None, effort=None,

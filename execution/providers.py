@@ -81,12 +81,17 @@ class ProviderSpec:
         return set(self.models.get(selected, ())) if selected in self.models else None
 
 
+# independent: any reviewer with another author identity may review first.
+# other_provider: the first (primary) reviewer must also run on another provider.
+_PRIMARY_POLICIES = {"independent", "other_provider"}
+
+
 def validate_config(config):
     """Validate and normalize the public JSON config without starting a CLI."""
     if not isinstance(config, dict):
         raise ProviderConfigError("configuration must be an object")
     allowed = {"memory_k", "memory_max_chars", "timeout", "providers", "agents",
-               "reviewers", "role_bindings", "limits", "shared_dir"}
+               "reviewers", "review_policy", "role_bindings", "limits", "shared_dir"}
     unknown = set(config) - allowed
     if unknown:
         raise ProviderConfigError("unknown configuration fields: " + ", ".join(sorted(unknown)))
@@ -188,6 +193,12 @@ def validate_config(config):
                 isinstance(item, str) and item in normalized["agents"] for item in names):
             raise ProviderConfigError(f"reviewers.{author} must list configured agent profiles")
         normalized["reviewers"][author] = list(names)
+    policy = config.get("review_policy", {})
+    if not isinstance(policy, dict) or set(policy) - {"primary"} \
+            or policy.get("primary", "independent") not in _PRIMARY_POLICIES:
+        raise ProviderConfigError(
+            "review_policy must be an object with primary: " + " or ".join(sorted(_PRIMARY_POLICIES)))
+    normalized["review_policy"] = {"primary": policy.get("primary", "independent")}
     bindings = config.get("role_bindings", {})
     if not isinstance(bindings, dict) or any(
             not isinstance(role, str) or not isinstance(alias, str) or alias not in normalized["agents"]
@@ -272,6 +283,16 @@ class ProviderRegistry:
             if self.identity(candidate) != author_identity:
                 result.append(candidate)
         return result
+
+    def primary_allowed(self, author, candidate):
+        """Whether `candidate` may be the primary reviewer of `author`'s work.
+
+        Identity independence is checked by reviewer_candidates; this adds the
+        configured primary policy on top of it.
+        """
+        if self.config.get("review_policy", {}).get("primary", "independent") != "other_provider":
+            return True
+        return self.profile(candidate)["provider"] != self.profile(author)["provider"]
 
     @staticmethod
     def _expand(value, *, model, effort, run, provider, sandbox=""):
