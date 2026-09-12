@@ -27,6 +27,13 @@ def main():
         if "DEMO PROVIDER" not in result.stdout:
             raise SystemExit("installed demo provider did not run")
         print(result.stdout.strip())
+        doctor = subprocess.run([sys.executable, "-m", "mam", "doctor"],
+                                cwd=root, env=env, capture_output=True, text=True,
+                                encoding="utf-8", shell=False, timeout=30)
+        graphs = next((line for line in doctor.stdout.splitlines() if line.startswith("graphs ")), "")
+        if doctor.returncode or not all(f"'{name}'" in graphs for name in ("build", "build-2r", "court", "research")):
+            raise SystemExit("installed package does not ship the bundled graphs:\n" + (doctor.stderr or doctor.stdout))
+        print(graphs)
 
 
 if __name__ == "__main__":

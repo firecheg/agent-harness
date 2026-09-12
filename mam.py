@@ -948,7 +948,8 @@ def cmd_doctor(a):
     print(f"\nmemory {len(_notes())} notes")
     for p, why in mem_lint():
         print(f"  LINT {p.relative_to(MEM).as_posix()}: {why}")
-    print(f"graphs {[p.stem for p in (HOME / 'graphs').glob('*.json')]}  (none bundled; add your own)")
+    print(f"graphs {sorted(p.stem for p in (HOME / 'graphs').glob('*.json'))}  "
+          f"(bundled; pass a path to run your own)")
 
 
 def cmd_ask(a):
