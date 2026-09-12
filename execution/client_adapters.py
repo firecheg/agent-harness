@@ -9,10 +9,49 @@ is not JSON (the optional native Codex profile uses TOML) fall back to a
 marker-delimited text fragment describing the same MCP server.
 """
 import argparse
+import ctypes
 import json
 import os
 from pathlib import Path
 import sys
+
+
+def _long_path(path):
+    """Normalize Windows 8.3 components without following links.
+
+    ``Path.resolve`` is intentionally not used here: this value is only for
+    the lexical containment check in ``_safe_path``.  Physical containment is
+    checked separately after resolving the target and its parent.
+    """
+    lexical = Path(os.path.abspath(path))
+    if os.name != 'nt':
+        return lexical
+    try:
+        kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+        get_long = kernel32.GetLongPathNameW
+        get_long.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32]
+        get_long.restype = ctypes.c_uint32
+    except (AttributeError, OSError):
+        return lexical
+
+    # GetLongPathNameW rejects a path with a missing final component, so ask
+    # for the longest existing prefix and append the untouched suffix.
+    missing = []
+    existing = lexical
+    while not os.path.lexists(existing) and existing != existing.parent:
+        missing.append(existing.name)
+        existing = existing.parent
+    if not os.path.lexists(existing):
+        return lexical
+    size = 260
+    while True:
+        buffer = ctypes.create_unicode_buffer(size)
+        length = get_long(str(existing), buffer, size)
+        if not length:
+            return lexical
+        if length < size:
+            return Path(buffer.value).joinpath(*reversed(missing))
+        size = length + 1
 
 _HERE = Path(__file__).resolve().parent
 for _p in (_HERE, _HERE.parent):
@@ -72,8 +111,9 @@ def _safe_path(path, home, label):
     junction or symlink.  Resolve both the target and its parent before any
     caller creates a directory or writes a file.
     """
-    home = Path(home).resolve()
-    lexical = Path(os.path.abspath(path))
+    physical_home = Path(home).resolve()
+    home = _long_path(home)
+    lexical = _long_path(path)
     if lexical == home or not lexical.is_relative_to(home):
         raise ValueError(f'{label} escapes home: {lexical}')
     try:
@@ -81,7 +121,7 @@ def _safe_path(path, home, label):
         parent = lexical.parent.resolve(strict=False)
     except OSError as exc:
         raise ValueError(f'cannot resolve {label}: {lexical}: {exc}') from exc
-    if not resolved.is_relative_to(home) or not parent.is_relative_to(home):
+    if not resolved.is_relative_to(physical_home) or not parent.is_relative_to(physical_home):
         raise ValueError(f'{label} escapes home: {lexical}')
     return lexical
 

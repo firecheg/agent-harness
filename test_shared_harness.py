@@ -52,13 +52,14 @@ class MigrationTests(unittest.TestCase):
                 except OSError:
                     linked = False
             if linked:
-                os.rmdir(p)
+                os.rmdir(p) if os.name == 'nt' else p.unlink()
         self.tmp.cleanup()
 
     def test_plan_is_read_only_for_explicit_generic_clients(self):
         plan = module.plan(self.home, self.shared, self.mam, self.clients)
         self.assertFalse(self.shared.exists())
-        self.assertEqual(plan['skills']['demo']['source'], str(self.home / '.alpha/skills/demo'))
+        self.assertEqual(plan['skills']['demo']['source'],
+                         str((self.home / '.alpha/skills/demo').resolve()))
         self.assertEqual(plan['conflicts'], [])
         self.assertEqual(plan['clients'], ['alpha', 'beta'])
 

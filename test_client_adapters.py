@@ -1,9 +1,11 @@
 import importlib.util
+import ctypes
 import os
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+from ctypes import wintypes
 
 spec = importlib.util.spec_from_file_location(
     'client_adapters', Path(__file__).parent / 'execution/client_adapters.py')
@@ -33,7 +35,33 @@ def clients():
     }
 
 
+def _short_path(path):
+    if os.name != 'nt':
+        return None
+    kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
+    get_short = kernel32.GetShortPathNameW
+    get_short.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
+    get_short.restype = wintypes.DWORD
+    buffer = ctypes.create_unicode_buffer(32768)
+    length = get_short(str(path), buffer, len(buffer))
+    return Path(buffer.value) if length else None
+
+
 class AdapterTests(unittest.TestCase):
+    def test_equivalent_windows_short_path_is_accepted(self):
+        if os.name != 'nt':
+            self.skipTest('8.3 paths are Windows-specific')
+        with tempfile.TemporaryDirectory(prefix='agent harness long path ') as tmp:
+            long_home = Path(tmp)
+            short_home = _short_path(long_home)
+            if not short_home or short_home == long_home:
+                self.skipTest('temporary path has no 8.3 alias')
+            state = m.configure(short_home, short_home / '.agent-harness',
+                                short_home / 'mam', 'python',
+                                {'third': clients()['tomlclient']})
+            self.assertEqual(state['status'], 'active')
+            self.assertEqual(m.issues(short_home / '.agent-harness'), [])
+
     def test_managed_settings_idempotent_rollback_preserves_other_changes(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
@@ -96,7 +124,7 @@ class AdapterTests(unittest.TestCase):
 
                 def interrupt_after_first_setting(path, value):
                     original_write(path, value)
-                    if path == json_path:
+                    if Path(path).resolve() == json_path.resolve():
                         raise KeyboardInterrupt('simulated process interruption')
 
                 with patch.object(m, 'write', side_effect=interrupt_after_first_setting):
@@ -145,7 +173,7 @@ class AdapterTests(unittest.TestCase):
                 self.assertFalse((outside / 'config.json').exists())
                 self.assertFalse((home / '.agent-harness').exists())
             finally:
-                os.rmdir(link)
+                os.rmdir(link) if os.name == 'nt' else link.unlink()
 
     def test_state_path_is_preflighted_before_configure(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -161,7 +189,8 @@ class AdapterTests(unittest.TestCase):
                 m.configure(home, home / '.agent-harness', home / 'mam', 'python',
                             {'third': clients()['tomlclient']})
             state_path = home / '.agent-harness/adapters.json'
-            self.assertIn((state_path, 'adapter state'), calls)
+            self.assertIn((state_path.resolve(), 'adapter state'),
+                          [(path.resolve(), label) for path, label in calls])
 
     def test_state_file_symlink_escape_is_rejected_when_supported(self):
         if os.name == 'nt':
