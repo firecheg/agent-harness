@@ -1,19 +1,15 @@
 # Shared agent rules
 
-The coordinator owns analysis, task specification, and final judgment. Configured
-summary and code workers perform all source orientation, search, classification,
-fact gathering, and implementation, regardless of file size or how the source is
-split. The coordinator reads original source only to check a specific worker
-claim, diff, or disputed fact, and states that question first. The first working
-update, every routing change, and the final update include a truthful canary with
-status (`planned`, `dispatched`, `completed`, or `cached`) and a real run
-reference. Direct work states `no delegation` and its reason.
+Keep ordinary answers and small reversible edits local. For substantial work,
+preserve the user's goal and permission, state a short completion criterion, and
+report actual checks.
 
-Select effort per task: `low` for mechanical work, `medium` for ordinary
-engineering, `high` for difficult diagnosis or safety, and `xhigh` for
-exceptional cross service work. Use `max` only with explicit project or user
-permission; if unsupported, record `effective unset`. Use one initial attempt
-and at most one targeted correction for a diagnosed failure. Keep memory scoped
-to the project and make narrow exceptions explicit. These are coordination
-policies, not hard runtime limits or a sandbox boundary; the configured runtime
-remains the source of enforcement.
+Use the narrow rule files beside this template only when their trigger applies:
+
+- [`rules/routing.md`](rules/routing.md): roles, effort, canaries and retries.
+- [`rules/source-reading.md`](rules/source-reading.md): narrow source orientation.
+- [`rules/memory-collaboration.md`](rules/memory-collaboration.md): scoped memory and independent review.
+- [`rules/verification.md`](rules/verification.md): repeatable checks and reporting.
+
+The runtime remains the source of enforcement. Keep this reusable template
+provider-neutral and out of personal state, credentials, transcripts and skills.

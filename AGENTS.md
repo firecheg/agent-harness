@@ -9,3 +9,8 @@ This repository contains reusable orchestration technology, not a personal agent
 - Independently review another author's changes. Different aliases with the same author identity do not provide independence.
 - Preserve source attribution and MIT notices. Document unsupported capabilities honestly.
 - Change client configuration only with an explicit client selection and reversible, conflict-aware operations.
+
+For reusable coordination guidance, load only the triggered file under
+`examples/rules/`: routing, source-reading, memory-collaboration, or
+verification. Ordinary answers and small reversible edits need no delegation or
+memory ritual.
