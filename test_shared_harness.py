@@ -52,7 +52,7 @@ class MigrationTests(unittest.TestCase):
                 except OSError:
                     linked = False
             if linked:
-                os.rmdir(p)
+                os.rmdir(p) if os.name == 'nt' else p.unlink()
         self.tmp.cleanup()
 
     def test_plan_is_read_only_for_explicit_generic_clients(self):

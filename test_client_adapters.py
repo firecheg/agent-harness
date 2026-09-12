@@ -145,7 +145,7 @@ class AdapterTests(unittest.TestCase):
                 self.assertFalse((outside / 'config.json').exists())
                 self.assertFalse((home / '.agent-harness').exists())
             finally:
-                os.rmdir(link)
+                os.rmdir(link) if os.name == 'nt' else link.unlink()
 
     def test_state_path_is_preflighted_before_configure(self):
         with tempfile.TemporaryDirectory() as tmp:
