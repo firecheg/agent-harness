@@ -58,6 +58,17 @@ class HarnessTests(unittest.TestCase):
         self.assertFalse(failed)
         self.assertIn("demo-reviewer", results["b"])
 
+    def test_graph_runs_with_runs_dir_outside_workspace(self):
+        spec = {"name": "tiny", "nodes": [
+            {"id": "a", "agent": "demo-worker", "prompt": "input={input}", "memory": False},
+        ]}
+        with tempfile.TemporaryDirectory() as work, tempfile.TemporaryDirectory() as runs,                 patch.object(mam, "WORK", Path(work)), patch.object(mam, "RUNS", Path(runs)),                 patch.object(mam, "run_agent", side_effect=lambda agent, prompt, *args, **kwargs: agent + ":" + prompt):
+            results, run_dir, failed = mam.run_graph(spec, {"input": "x"}, quiet=True)
+            self.assertFalse(failed)
+            self.assertEqual(results["a"], "demo-worker:input=x")
+            self.assertEqual(run_dir.parent, Path(runs))
+            self.assertIn(run_dir.as_posix(), (run_dir / "journal.log").read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()
