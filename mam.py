@@ -70,6 +70,13 @@ MEM = Path(os.environ.get("AGENT_HARNESS_MEMORY") or
            os.environ.get("MAM_MEMORY") or Path.home() / ".agent-harness" / "memory").resolve()
 RUNS = Path(os.environ.get("AGENT_HARNESS_RUNS") or
            os.environ.get("MAM_RUNS") or WORK / ".mam").resolve()
+# Which agents a reader actually has, and who they want writing the spec, doing
+# the work and checking it, is a property of their machine — not of this
+# package. Graphs may therefore name ROLES ("implement", "review"), and
+# roles.json binds each to configured agents. It lives beside the vault, never
+# in the checkout: a package ships shapes, not somebody's roster.
+ROLES_FILE = Path(os.environ.get("AGENT_HARNESS_ROLES") or
+                  os.environ.get("MAM_ROLES") or Path.home() / ".agent-harness" / "roles.json")
 # Two-char floor, not three: "AI", "Go", "C#", "ML" are exactly the terms a
 # technical vault is asked about, and dropping them made recall fail silently.
 WORD = re.compile(r"[a-zA-Z_][a-zA-Z0-9_#+.-]*|[а-яА-ЯёЁ]+")
@@ -277,6 +284,91 @@ class AgentError(RuntimeError):
     pass
 
 
+COLD_START = """no roles configured yet. Ask the user which configured agent should write the
+spec, do the work and review it, then record the answer:
+  agent-harness init --spec <agent> --implement <agent> --review <agent>
+`agent-harness doctor` lists what is configured and installed."""
+
+
+def load_roles():
+    """role -> agent or preference chain. Empty until `init` has run."""
+    if not ROLES_FILE.exists():
+        return {}
+    return json.loads(ROLES_FILE.read_text(encoding="utf-8"))
+
+
+def role_chain(roles, role):
+    """The agents a role may resolve to, in the user's own order of preference."""
+    v = roles.get(role)
+    return [] if v is None else ([v] if isinstance(v, str) else list(v))
+
+
+def _author_key(agent):
+    try:
+        return REGISTRY.identity(agent)
+    except ProviderConfigError:
+        return agent
+
+
+def bind_roles(spec, roles=None):
+    """Substitute role names for agent names throughout a graph spec.
+
+    Roles share the agent namespace and are consulted only when the name is not
+    a configured agent, so a spec that names agents outright still runs.
+    """
+    roles = load_roles() if roles is None else roles
+    bound = json.loads(json.dumps(spec))
+
+    def bind(name, where):
+        if name in CFG["agents"]:
+            return name
+        chain = role_chain(roles, name)
+        if chain:
+            for candidate in chain:
+                if installed(candidate):
+                    return candidate
+            raise ValueError(
+                f"{where}: role {name!r} lists {', '.join(chain)}, none of them installed. "
+                f"Run doctor, then re-run init for that role."
+            )
+        have = f"Roles you have: {', '.join(sorted(roles))}" if roles else ""
+        raise ValueError(
+            f"{where}: {name!r} is neither a configured agent nor a configured role."
+            + ("\n" + have if have else "") + "\n" + COLD_START
+        )
+
+    for n in bound["nodes"]:
+        for m in (_sub_nodes(n) or [n]):
+            m["agent"] = bind(m["agent"], m["id"])
+            v = m.get("verify")
+            if v and v.get("by"):
+                v["by"] = bind(v["by"], f"{m['id']}.verify.by")
+    # Roles that must not collapse onto one author. review_of covers the pairs
+    # that have an edge in the graph; this covers the rest — "the prosecutor
+    # wrote neither the spec nor the code" is a rule about three nodes, not an
+    # edge between two, and it is only true or false once the roles are bound.
+    # Like every other independence check here, two aliases sharing one author
+    # identity count as the same author.
+    for group in spec.get("distinct", []):
+        seen = {}
+        for role in group:
+            agent = bind(role, f"distinct {group}")
+            key = _author_key(agent)
+            if key in seen:
+                raise ValueError(
+                    f"roles {seen[key]!r} and {role!r} both resolve to author {key!r}, and "
+                    f"{spec['name']} needs them apart. Give one of them a different agent: "
+                    f"agent-harness init --role {role}=<agent>"
+                )
+            seen[key] = role
+
+    # Two roles can point at the same agent, which turns a cross-check back into
+    # self-review — invisible in the spec, and only true after binding. Re-run
+    # the structural checks against the agents that will actually run.
+    validate(bound)
+    return bound
+
+
 def resolve(agent):
     """Executable path and provider context for a configured agent profile."""
     try:
@@ -426,6 +518,29 @@ def _ancestors(nid, nodes, seen=None):
 
 
 def validate(spec, input_keys=frozenset({"input"})):
+    for n in spec["nodes"]:
+        cfg = n.get("rounds")
+        if not cfg:
+            continue
+        if n.get("prompt") or n.get("agent"):
+            raise ValueError(f"{n['id']}: a rounds block runs its own nodes; it takes no agent or prompt")
+        if not cfg.get("nodes"):
+            raise ValueError(f"{n['id']}: rounds block has no nodes")
+        if any(_sub_nodes(s) for s in cfg["nodes"]):
+            raise ValueError(f"{n['id']}: rounds cannot nest")
+        if cfg.get("until") not in {s["id"] for s in cfg["nodes"]}:
+            raise ValueError(
+                f"{n['id']}: until={cfg.get('until')!r} names no node in the block. "
+                f"One of them has to decide when the argument is over, and it must end "
+                f"its answer with {{\"pass\": bool, \"issues\": [...]}}"
+            )
+    # {round} and {previous} come from the runner, not from a dependency, so
+    # they are only offered where a loop actually supplies them.
+    extra = {"round", "previous"} if any(_sub_nodes(n) for n in spec["nodes"]) else set()
+    _validate_flat(_flatten(spec), input_keys | extra)
+
+
+def _validate_flat(spec, input_keys):
     ids = {n["id"] for n in spec["nodes"]}
     if len(ids) != len(spec["nodes"]):
         raise ValueError("duplicate node ids")
@@ -486,6 +601,73 @@ def render(template, ctx):
         lambda m: str(ctx[m.group(1)]) if m.group(1) in ctx else m.group(0), template)
 
 
+def _sub_nodes(n):
+    return (n.get("rounds") or {}).get("nodes", [])
+
+
+def _flatten(spec):
+    """One pass through every rounds block, for structural checks.
+
+    A sub-node sees what the block waits on plus every sub-node before it —
+    exactly what one trip round the loop offers it. Later rounds add the
+    previous round's transcript, which the runner supplies as {previous} rather
+    than as a dependency, so that a node can read what came after it last time
+    without the graph having to admit a cycle.
+    """
+    blocks = {n["id"]: [s["id"] for s in _sub_nodes(n)] for n in spec["nodes"] if _sub_nodes(n)}
+    flat = []
+    for n in spec["nodes"]:
+        needs = []
+        for d in n.get("needs", []):
+            needs += blocks.get(d, [d])
+        if not _sub_nodes(n):
+            flat.append({**n, "needs": needs})
+            continue
+        before = []
+        for s in _sub_nodes(n):
+            flat.append({**s, "needs": needs + before})
+            before = before + [s["id"]]
+    return {**spec, "nodes": flat}
+
+
+def run_rounds(node, ctx, run_dir, log):
+    """Run a block of nodes over and over until the deciding one says stop.
+
+    The verify loop pairs one author with one verifier, which is enough when a
+    single agent is being held to account. A three-cornered argument — accuser,
+    author, arbiter — does not fit in it: whoever is not the verifier only ever
+    speaks once, and the party that has to keep re-reading the code after each
+    fix is precisely the one you cannot afford to silence.
+    """
+    cfg = node["rounds"]
+    nid, until, limit = node["id"], cfg["until"], cfg.get("max", 3)
+    local = dict(ctx)
+    local["previous"] = ""
+    for r in range(1, limit + 1):
+        local["round"] = f"{r} of {limit}"
+        transcript, verdict = [], None
+        for s in cfg["nodes"]:
+            out = run_node(s, local, run_dir / f"{nid}.r{r}", log)
+            local[s["id"]] = ctx[s["id"]] = out
+            transcript.append(f"--- {s['id']}, round {r} ---\n{out[:20000]}")
+            if s["id"] != until:
+                continue
+            ok, issues = parse_verdict(out)
+            log(f"  {nid} round {r}/{limit}: {until} says "
+                + ("SETTLED" if ok else f"{len(issues)} open"))
+            if ok:
+                return out
+            verdict = issues
+        # Only what actually happened, and only the round just gone: handing an
+        # agent the whole history invites it to relitigate a point that was
+        # settled two rounds ago.
+        local["previous"] = "\n\n".join(transcript)
+    raise AgentError(
+        f"{nid}: {until} was still unsatisfied after {limit} rounds. Last: "
+        + "; ".join(verdict or ["no issues reported"])
+    )
+
+
 MEMORY_NOTE = re.compile(
     r"\n?---\s*AGENT_HARNESS_MEMORY_NOTE\s*---\n(.*?)\n---\s*END_AGENT_HARNESS_MEMORY_NOTE\s*---\n?",
     re.S)
@@ -533,6 +715,8 @@ def _extract_memory_note(text):
 
 
 def run_node(node, ctx, run_dir, log):
+    if node.get("rounds"):
+        return run_rounds(node, ctx, run_dir, log)
     nid = node["id"]
     agent = node["agent"]
     task = render(node["prompt"], ctx)
@@ -646,6 +830,11 @@ def run_graph(spec, inputs, quiet=False):
                 n = futs[fut]
                 try:
                     results[n["id"]] = ctx[n["id"]] = fut.result()
+                    # A block's argument is the interesting part of its run;
+                    # keeping only the closing verdict throws the case away.
+                    for m in _sub_nodes(n):
+                        if m["id"] in ctx:
+                            results[m["id"]] = ctx[m["id"]]
                 except Exception as e:
                     results[n["id"]] = f"FAILED: {e}"     # never enters ctx
                     failed.add(n["id"])
@@ -664,6 +853,12 @@ def cmd_doctor(a):
     print(f"harness   {HOME}")
     print(f"config    {CFG.get('_config_path', '(bundled default)')}")
     print(f"workspace {WORK}   (agents run here; override with MAM_WORKSPACE)")
+    _roles = load_roles()
+    if _roles:
+        print("roles     " + ", ".join(
+            f"{r}={'>'.join(role_chain(_roles, r))}" for r in _roles) + f"   ({ROLES_FILE})")
+    else:
+        print("roles     (none)  " + COLD_START.splitlines()[0])
     print(f"vault     {MEM}" + ("   (bundled seed — set AGENT_HARNESS_MEMORY to keep notes"
                                 " out of the clone)" if MEM == HOME / "memory" else ""))
     for name, profile in CFG["agents"].items():
@@ -735,12 +930,61 @@ def load_reasoning_dimensions(value):
     return validate_reasoning_config({"dimensions":dimensions})["dimensions"]
 
 
+def cmd_init(a):
+    """Cold start: record who fills each role on THIS machine."""
+    roles = load_roles()
+    asked = {"spec": a.spec, "implement": a.implement, "review": a.review,
+             "review_2": a.review_2, "judge": a.judge, "web": a.web}
+    for pair in a.role or []:
+        if "=" not in pair:
+            sys.exit(f"--role wants NAME=agent[,agent]; got {pair!r}")
+        name, agents = pair.split("=", 1)
+        asked[name.strip()] = [x.strip() for x in agents.split(",") if x.strip()]
+    if not any(asked.values()) and not roles:
+        sys.exit(COLD_START)
+
+    for role, chain in asked.items():
+        if not chain:
+            continue
+        for agent in chain:
+            if agent not in CFG["agents"]:
+                sys.exit(f"{role}: unknown agent {agent!r}; configured: {', '.join(CFG['agents'])}")
+            try:
+                resolve(agent)
+            except AgentError as e:
+                sys.exit(f"{role}: {e}. Install it or drop it from the chain.")
+        roles[role] = chain[0] if len(chain) == 1 else chain
+
+    # The judge rules on work it did not write, so defaulting it to the spec
+    # author is only safe while that author is not also the implementer.
+    if "judge" not in roles and role_chain(roles, "spec") \
+            and role_chain(roles, "spec")[0] != (role_chain(roles, "implement") or [None])[0]:
+        roles["judge"] = role_chain(roles, "spec")[0]
+
+    ROLES_FILE.parent.mkdir(parents=True, exist_ok=True)
+    ROLES_FILE.write_text(json.dumps(roles, indent=2) + "\n", encoding="utf-8")
+    print(f"roles -> {ROLES_FILE}")
+    for role in roles:
+        chain = role_chain(roles, role)
+        print(f"  {role:12} {chain[0]}" + (f"   (falls back to {', '.join(chain[1:])})"
+                                           if len(chain) > 1 else ""))
+    missing = [r for r in ("spec", "implement", "review") if r not in roles]
+    if missing:
+        print(f"\nstill unset: {', '.join(missing)} — graphs needing them will refuse to run")
+    first = {r: (role_chain(roles, r) or [None])[0] for r in ("implement", "review")}
+    if first["implement"] and first["review"] and (
+            first["implement"] == first["review"] or _same_identity(first["implement"], first["review"])):
+        print(f"\nWARNING: implement and review both resolve to one author ({first['implement']}, "
+              f"{first['review']}) — that is self-review, and every graph using both will be rejected")
+
+
 def cmd_graph(a):
     spec = json.loads(Path(a.spec if os.sep in a.spec or a.spec.endswith(".json")
                            else HOME / "graphs" / f"{a.spec}.json").read_text(encoding="utf-8"))
     inputs = dict(kv.split("=", 1) for kv in a.set or [])
     if a.input:
         inputs["input"] = a.input
+    spec = bind_roles(spec)
     results, d, failed = run_graph(spec, inputs)
     print(f"\n=== {spec['name']} ===")
     for k, v in results.items():
@@ -807,6 +1051,24 @@ def main():
     p.add_argument("--reasoning", help="JSON object or path with all five reasoning dimensions")
     p.add_argument("--model")
     p.set_defaults(fn=cmd_review)
+
+    p = sub.add_parser("init", help="record who fills each graph role on this machine")
+    p.add_argument("--config", dest="config", default=argparse.SUPPRESS,
+                   help="explicit provider/role configuration JSON")
+    # Every role takes a chain, not one name: an agent that is rate-limited or
+    # logged out should cost you a fallback, not a failed run. Repeat the flag,
+    # best first.
+    p.add_argument("--spec", action="append", help="writes the brief")
+    p.add_argument("--implement", action="append", help="does the work")
+    p.add_argument("--review", action="append", help="checks it")
+    p.add_argument("--review-2", action="append", dest="review_2",
+                   help="second, independent reviewer")
+    p.add_argument("--judge", action="append",
+                   help="rules on the reviews (default: the spec agent)")
+    p.add_argument("--web", action="append", help="live web access, for research graphs")
+    p.add_argument("--role", action="append", metavar="NAME=agent[,agent]",
+                   help="any other role a graph names, e.g. --role prosecutor=a,b")
+    p.set_defaults(fn=cmd_init)
 
     p = sub.add_parser("graph", help="run a graph spec")
     p.add_argument("--config", dest="config", default=argparse.SUPPRESS,
