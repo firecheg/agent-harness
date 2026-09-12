@@ -788,6 +788,14 @@ def _remember(note):
         pass
 
 
+def display_path(path):
+    """Workspace-relative path for output; absolute when RUNS lives elsewhere."""
+    try:
+        return path.relative_to(WORK).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
 def run_graph(spec, inputs, quiet=False):
     validate(spec, frozenset(inputs))
     run_dir = RUNS / f"{time.strftime('%Y%m%d-%H%M%S')}-{spec['name']}"
@@ -802,7 +810,7 @@ def run_graph(spec, inputs, quiet=False):
     ctx = dict(inputs)
     nodes = {n["id"]: n for n in spec["nodes"]}
     done, results, failed = set(), {}, set()
-    log(f"graph {spec['name']} -> {run_dir.relative_to(WORK).as_posix()}")
+    log(f"graph {spec['name']} -> {display_path(run_dir)}")
 
     with cf.ThreadPoolExecutor(max_workers=spec.get("concurrency", 4)) as pool:
         while len(done) < len(nodes):
@@ -989,7 +997,7 @@ def cmd_graph(a):
     print(f"\n=== {spec['name']} ===")
     for k, v in results.items():
         print(f"\n--- {k} ---\n{v}")
-    print(f"\nrun: {d.relative_to(WORK).as_posix()}")
+    print(f"\nrun: {display_path(d)}")
     if failed:
         sys.exit(f"\n{len(failed)} node(s) failed or were skipped: {', '.join(sorted(failed))}")
 
