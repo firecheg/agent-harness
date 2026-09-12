@@ -23,6 +23,12 @@ The runner receives a validated task, resolves a configured role/agent and recor
 
 The generic provider boundary is a command-line process. Supporting an arbitrary HTTP API still requires a CLI or bridge that speaks to that API; the project does not claim identical APIs across model vendors. Optional vendor presets are conveniences, not core requirements.
 
+## Graphs, roles and rounds
+
+A graph node names either a configured agent or a role (`spec`, `implement`, `review`, `review_2`, `judge`, `prosecutor`, ...). `agent-harness init` records which agents fill each role on this machine in `~/.agent-harness/roles.json` (`AGENT_HARNESS_ROLES` overrides); a role may list a preference chain, and the first installed agent wins. Binding happens before a run and re-validates the bound graph, so two roles that resolve to one author identity are rejected as self-review. A spec's `distinct` groups name roles that must resolve to different author identities even without a review edge between them.
+
+A `rounds` block (`{"nodes": [...], "until": "<node id>", "max": N}`) runs its nodes in order, repeatedly, until the `until` node's answer ends in `{"pass": true, "issues": []}`; sub-nodes receive `{round}` and `{previous}` (the last round's transcript). Running out of rounds is a node failure, not a pass. Blocks cannot nest.
+
 ## Reasoning and cost
 
 Each invocation is assessed independently. The caller supplies the task kind or all five complexity dimensions; source text, file count and parent effort are not proxies for task complexity. Unknown difficulty defaults to medium. Automatic selection never chooses max. Unsupported model capabilities are reported explicitly.
