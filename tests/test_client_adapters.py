@@ -1,6 +1,7 @@
 import importlib.util
 import ctypes
 import os
+import tomllib
 from pathlib import Path
 import tempfile
 import unittest
@@ -191,6 +192,26 @@ class AdapterTests(unittest.TestCase):
             state_path = home / '.agent-harness/adapters.json'
             self.assertIn((state_path.resolve(), 'adapter state'),
                           [(path.resolve(), label) for path, label in calls])
+
+    def test_env_vars_are_forwarded_to_server_entries(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            environ = {'AGENT_HARNESS_HOME': 'ignored',
+                       'AGENT_HARNESS_CONFIG': r'C:\Users\example\.agent-harness\config.json',
+                       'AGENT_HARNESS_MEMORY': r'C:\Users\example\.agent-harness\memory',
+                       'AGENT_HARNESS_SHARED': '',
+                       'MAM_SECRET': 'do-not-leak'}
+            manifest = {'jsonclient': clients()['jsonclient'], 'tomlclient': clients()['tomlclient']}
+            m.configure(home, home / '.agent-harness', home / 'mam', 'python', manifest, environ)
+            expected = {'AGENT_HARNESS_HOME': str((home / 'mam').resolve()),
+                        'AGENT_HARNESS_CONFIG': environ['AGENT_HARNESS_CONFIG'],
+                        'AGENT_HARNESS_MEMORY': environ['AGENT_HARNESS_MEMORY']}
+            json_entry = m.get(m.load(home / '.jsonclient/config.json'), ['mcpServers', 'agent_harness'])
+            self.assertEqual(json_entry['env'], expected)
+            toml_text = (home / '.tomlclient/config.toml').read_text()
+            parsed = tomllib.loads(toml_text)
+            self.assertEqual(parsed['mcp_servers']['agent_harness']['env'], expected)
+            self.assertEqual(m.issues(home / '.agent-harness'), [])
 
     def test_state_file_symlink_escape_is_rejected_when_supported(self):
         if os.name == 'nt':

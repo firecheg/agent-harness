@@ -52,6 +52,12 @@ paths relative to the selected home. The adapter refuses pre-existing managed
 entries, detects edits before rollback, and rejects links or junctions that
 would write outside that home.
 
+`configure` also copies `AGENT_HARNESS_CONFIG`, `AGENT_HARNESS_MEMORY` and
+`AGENT_HARNESS_SHARED` into the server entry's `env` when they are set,
+because some clients (e.g. Codex) launch stdio MCP servers without passing
+along the user's environment. After changing those variables, run `upgrade`
+(rollback + configure) to refresh the recorded entries.
+
 ## Shared resources and clients
 
 The resource layer manages references to a user-owned canonical location. A client adapter describes where that client expects resources or server configuration. Changes are explicit, journaled and reversible; rollback must not overwrite a user's later edits. Provider authorization stays with the provider/client.
