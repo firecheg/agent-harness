@@ -41,6 +41,16 @@ def main():
         if presets.returncode or not {"claude", "codex", "gemini", "agy"} <= set(json.loads(presets.stdout or "{}")):
             raise SystemExit("installed package does not ship the CLI presets:\n" + (presets.stderr or presets.stdout))
         print("presets", sorted(json.loads(presets.stdout)))
+        skills = subprocess.run([sys.executable, "-c",
+                                 "import mam, pathlib; root = pathlib.Path(mam.__file__).parent / 'skills'; "
+                                 "print(sorted(str(p.relative_to(root)).replace('\\\\', '/') for p in root.rglob('*.md')))"],
+                                cwd=root, env=env, capture_output=True, text=True, encoding="utf-8",
+                                shell=False, timeout=30)
+        needed = ["multi-agent/SKILL.md", "multi-agent/references/cold-start.md",
+                  "multi-agent/references/graphs.md", "shared-harness/SKILL.md"]
+        if skills.returncode or not all(f"'{name}'" in skills.stdout for name in needed):
+            raise SystemExit("installed package does not ship the bundled skills:\n" + (skills.stderr or skills.stdout))
+        print("skills", skills.stdout.strip())
 
 
 if __name__ == "__main__":
