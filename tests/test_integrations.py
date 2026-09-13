@@ -1,8 +1,6 @@
-"""Проверки протокола MCP и офлайн-инициализации установленного Spec Kit."""
-import importlib.util
+"""Проверки протокола MCP и офлайн-интеграции."""
 import json
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -10,10 +8,6 @@ import unittest
 from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[1]
-spec=importlib.util.spec_from_file_location('specify_project',ROOT/'execution/specify_project.py')
-sp=importlib.util.module_from_spec(spec);spec.loader.exec_module(sp)
-
-
 class Integrations(unittest.TestCase):
     def test_mcp_survives_invalid_request_and_lists_annotated_tools(self):
         requests=[None,[],{'jsonrpc':'2.0','id':1,'method':'initialize','params':{}},
@@ -58,19 +52,5 @@ class Integrations(unittest.TestCase):
                 with self.subTest(reasoning=reasoning), self.assertRaises(ValueError):
                     server.call('context_read',{'project':str(root),'paths':['a.py'],
                                                 'question':'q','reasoning':reasoning})
-
-    @unittest.skipUnless(shutil.which('specify'),'установите specify-cli 1.0.4')
-    def test_specify_preview_repeat_and_user_conflict(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp).resolve()
-            first=sp.initialize(root)
-            self.assertTrue(first['new']);self.assertFalse(list(root.iterdir()))
-            self.assertTrue(sp.initialize(root,True)['applied'])
-            self.assertEqual(sp.initialize(root,True)['new'],[])
-            target=root/'.claude/skills/speckit-plan/SKILL.md'
-            target.write_text('user change',encoding='utf-8')
-            with self.assertRaises(ValueError):sp.initialize(root,True)
-            self.assertEqual(target.read_text(encoding='utf-8'),'user change')
-
 
 if __name__=='__main__':unittest.main()

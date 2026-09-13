@@ -47,7 +47,9 @@ def main():
                                 cwd=root, env=env, capture_output=True, text=True, encoding="utf-8",
                                 shell=False, timeout=30)
         needed = ["multi-agent/SKILL.md", "multi-agent/references/cold-start.md",
-                  "multi-agent/references/graphs.md", "shared-harness/SKILL.md"]
+                  "multi-agent/references/graphs.md"]
+        if (Path(__file__).resolve().parents[1] / "tools" / "export_mod.py").is_file():
+            needed.append("shared-harness/SKILL.md")
         if skills.returncode or not all(f"'{name}'" in skills.stdout for name in needed):
             raise SystemExit("installed package does not ship the bundled skills:\n" + (skills.stderr or skills.stdout))
         print("skills", skills.stdout.strip())

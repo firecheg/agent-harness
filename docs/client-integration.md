@@ -51,3 +51,13 @@ Use `--clients` with a copied manifest for another editor or agent CLI. Keep
 paths relative to the selected home. The adapter refuses pre-existing managed
 entries, detects edits before rollback, and rejects links or junctions that
 would write outside that home.
+
+## Shared resources and clients
+
+The resource layer manages references to a user-owned canonical location. A client adapter describes where that client expects resources or server configuration. Changes are explicit, journaled and reversible; rollback must not overwrite a user's later edits. Provider authorization stays with the provider/client.
+
+Native read hooks cover recognized operations and supported clients. They are not a universal sandbox and cannot reliably infer the purpose of a source read. Instructions and observable routing remain part of the operational policy.
+
+## Why a separate repository
+
+Agent Harness is where the code is developed. multi-agent-mod is a generated subset without the client wiring (tools/export_mod.py) and is never edited directly.

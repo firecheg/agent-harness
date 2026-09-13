@@ -31,15 +31,15 @@ print(json.dumps({"result": f"echo:{prompt}", "is_error": False, "model": model,
 
 MATRIX = {
     "agents": {
-        "codex-luna": {"preset": "codex", "model": "luna", "role": "implementation"},
-        "codex-astra": {"preset": "codex", "model": "astra", "role": "review"},
+        "codex-writer": {"preset": "codex", "model": "model-a", "role": "implementation"},
+        "codex-checker": {"preset": "codex", "model": "model-b", "role": "review"},
         "claude-sonnet": {"preset": "claude", "model": "sonnet", "role": "implementation"},
         "claude-opus": {"preset": "claude", "model": "opus", "role": "spec, judge"},
     },
-    "reviewers": {"codex-luna": ["claude-opus", "codex-astra"],
-                  "claude-sonnet": ["codex-astra", "claude-opus"]},
+    "reviewers": {"codex-writer": ["claude-opus", "codex-checker"],
+                  "claude-sonnet": ["codex-checker", "claude-opus"]},
     "review_policy": {"primary": "other_provider"},
-    "roles": {"spec": "claude-opus", "implement": ["codex-luna", "claude-sonnet"], "judge": "claude-opus"},
+    "roles": {"spec": "claude-opus", "implement": ["codex-writer", "claude-sonnet"], "judge": "claude-opus"},
 }
 DETECTED = [{"preset": "codex", "found": True, "path": "C:/tools/codex.exe"},
             {"preset": "claude", "found": True, "path": "C:/tools/claude.cmd"}]
@@ -96,13 +96,13 @@ class BuildTests(unittest.TestCase):
         config, roles = cold_start.build(MATRIX, detected=DETECTED)
         cfg = validate_config(config)
         self.assertEqual(sorted(cfg["providers"]), ["claude", "codex"])
-        self.assertEqual(sorted(cfg["providers"]["codex"]["models"]), ["astra", "luna"])
+        self.assertEqual(sorted(cfg["providers"]["codex"]["models"]), ["model-a", "model-b"])
         self.assertEqual(cfg["providers"]["codex"]["argv"][0], "C:/tools/codex.exe")
-        self.assertEqual(cfg["agents"]["codex-astra"]["author_identity"], "codex-astra")
+        self.assertEqual(cfg["agents"]["codex-checker"]["author_identity"], "codex-checker")
         registry = ProviderRegistry(config)
-        self.assertTrue(registry.primary_allowed("codex-luna", "claude-opus"))
-        self.assertFalse(registry.primary_allowed("codex-luna", "codex-astra"))
-        self.assertEqual(roles["implement"], ["codex-luna", "claude-sonnet"])
+        self.assertTrue(registry.primary_allowed("codex-writer", "claude-opus"))
+        self.assertFalse(registry.primary_allowed("codex-writer", "codex-checker"))
+        self.assertEqual(roles["implement"], ["codex-writer", "claude-sonnet"])
 
     def test_bad_answers_fail_with_a_question_to_ask(self):
         cases = (

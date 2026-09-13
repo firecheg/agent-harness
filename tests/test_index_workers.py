@@ -62,7 +62,7 @@ class WorkerTests(unittest.TestCase):
             task={'question':'q','paths':['a.py'],'kind':'code',
                   'reasoning':{'dimensions':dimensions,'cap':'medium'}}
             with patch.object(m,'index_for',return_value=None), patch.object(m,'summarize') as summarize:
-                summarize.return_value=dict(answer='ok',cached=False,truncated=False,worker='codex',model='gpt-5.6-luna',seconds=0,usage={},reported_cost_usd=None,source_chars=3,run='log',reasoning={'effective':'medium'})
+                summarize.return_value=dict(answer='ok',cached=False,truncated=False,worker='codex',model='gpt-model-a',seconds=0,usage={},reported_cost_usd=None,source_chars=3,run='log',reasoning={'effective':'medium'})
                 result=m.batch(root,[task])
             config=summarize.call_args.kwargs['config']
             self.assertEqual(config['reasoning_dimensions'],dimensions)
