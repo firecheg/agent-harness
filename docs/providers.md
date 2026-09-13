@@ -30,6 +30,15 @@ Each `providers` entry contains:
 * `author_identity`: the account or identity represented by the provider.
   Reviewer aliases with the same identity are rejected as self-review.
 * `timeout_seconds`: a positive subprocess timeout.
+* `input`: `stdin` (default) or `file`. With `file` the prompt is written to
+  `<run>/prompt.md`, `argv` must contain `{prompt_file}`, and stdin stays
+  empty — for CLIs that take the prompt only as an argument.
+* `env`: variables set for this provider's process only. A value is a
+  literal, may contain `{model}`, or is a whole-value `${NAME}` copied from
+  your environment at run time; `""` removes an inherited variable. Names
+  that look like credentials (`KEY`, `TOKEN`, `SECRET`, `PASSWORD`) accept
+  only `${NAME}` references, never literal values. When a referenced variable
+  is unset the agent counts as not installed, and `doctor` names the variable.
 
 `agents` binds a stable alias to a provider and model and gives it a role.
 `role_bindings` maps task roles such as `summary`, `code`, or `context_read`

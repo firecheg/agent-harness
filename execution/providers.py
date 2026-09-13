@@ -25,6 +25,12 @@ _OUTPUTS = {"text", "json", "json_field"}
 # stdin stays empty — for CLIs that only accept the prompt as an argument.
 _INPUTS = {"stdin", "file"}
 PROMPT_FILE = "prompt.md"
+# Provider `env`: literal values, "{model}", or a whole-value "${NAME}" copied
+# from the caller's environment at run time. "" removes an inherited variable.
+# Anything that looks like a credential must be a reference, never a literal.
+_ENV_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_ENV_REF = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+_SECRET_NAME = re.compile(r"KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL", re.I)
 
 
 class ProviderConfigError(ValueError):
@@ -81,6 +87,7 @@ class ProviderSpec:
     author_identity: str
     timeout_seconds: int
     input: str = "stdin"
+    env: tuple[tuple[str, str], ...] = ()
 
     def capabilities(self, model: str | None = None):
         selected = model or self.default_model
@@ -112,7 +119,7 @@ def validate_config(config):
             raise ProviderConfigError(f"providers.{name} must be an object")
         allowed_provider = {"argv", "input", "output", "output_field", "model_args",
                             "effort_args", "sandbox_args", "default_sandbox", "models",
-                            "default_model", "author_identity", "timeout_seconds"}
+                            "default_model", "author_identity", "timeout_seconds", "env"}
         extra = set(raw) - allowed_provider
         if extra:
             raise ProviderConfigError(f"providers.{name}: unknown fields: {', '.join(sorted(extra))}")
@@ -164,7 +171,24 @@ def validate_config(config):
             _string(default_sandbox, f"providers.{name}.default_sandbox")
         if default_sandbox and not sandbox_args:
             raise ProviderConfigError(f"providers.{name}.default_sandbox requires sandbox_args")
+        env = raw.get("env", {})
+        if not isinstance(env, dict):
+            raise ProviderConfigError(f"providers.{name}.env must be an object")
+        for key, value in env.items():
+            if not isinstance(key, str) or not _ENV_NAME.fullmatch(key):
+                raise ProviderConfigError(f"providers.{name}.env: invalid variable name {key!r}")
+            if not isinstance(value, str):
+                raise ProviderConfigError(f"providers.{name}.env.{key} must be a string")
+            if _ENV_REF.search(value) and not _ENV_REF.fullmatch(value):
+                raise ProviderConfigError(f"providers.{name}.env.{key}: ${{NAME}} must be the whole value")
+            if set(_TOKEN.findall(_ENV_REF.sub("", value))) - {"model"}:
+                raise ProviderConfigError(f"providers.{name}.env.{key}: only {{model}} and ${{NAME}} are expanded")
+            if value and _SECRET_NAME.search(key) and not _ENV_REF.fullmatch(value):
+                raise ProviderConfigError(
+                    f"providers.{name}.env.{key} looks like a credential: write ${{YOUR_VARIABLE}}, "
+                    f"never the value")
         normalized["providers"][name] = {
+            "env": dict(env),
             "argv": argv, "input": input_mode, "output": output,
             "output_field": output_field, "model_args": model_args,
             "effort_args": effort_args, "sandbox_args": sandbox_args,
@@ -264,7 +288,28 @@ class ProviderRegistry:
                             default_model=raw["default_model"], models=raw["models"],
                             author_identity=raw["author_identity"],
                             timeout_seconds=raw["timeout_seconds"],
-                            input=raw.get("input", "stdin"))
+                            input=raw.get("input", "stdin"),
+                            env=tuple(raw.get("env", {}).items()))
+
+    def environment(self, provider, model=None, base=None):
+        """The subprocess environment for `provider`: the caller's environment
+        with the provider's `env` applied. A missing referenced variable fails
+        before anything starts, naming the variable to set."""
+        spec = self.provider(provider)
+        env = dict(os.environ if base is None else base)
+        for key, value in spec.env:
+            if value == "":
+                env.pop(key, None)
+                continue
+            ref = _ENV_REF.fullmatch(value)
+            if ref:
+                if ref.group(1) not in env or not env[ref.group(1)]:
+                    raise ProviderConfigError(
+                        f"provider {provider!r} needs environment variable {ref.group(1)} (for {key})")
+                env[key] = env[ref.group(1)]
+            else:
+                env[key] = value.replace("{model}", model or spec.default_model)
+        return env
 
     def resolve(self, alias):
         profile = self.profile(alias)
