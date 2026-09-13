@@ -16,8 +16,9 @@ agent-harness-mcp = "execution.context_server:main"
 
 [tool.setuptools]
 py-modules = ["mam"]
-packages = ["execution", "examples", "demo", "memory"]
+packages = ["execution", "examples", "demo", "memory", "graphs"]
 
 [tool.setuptools.package-data]
 examples = ["*.json"]
+graphs = ["*.json"]
 memory = ["*.md"]
