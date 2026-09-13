@@ -71,5 +71,6 @@ agree.
 
 ## 5. Connect clients
 
-To expose the MCP tools, the read hook and the bundled skills to their
-editors and agent CLIs, continue with the shared-harness skill.
+To expose the MCP tools, register `agent-harness-mcp` as an MCP server in the
+client. If agent-harness's shared wiring is installed, connecting clients and
+shared skills is handled by the shared-harness skill.

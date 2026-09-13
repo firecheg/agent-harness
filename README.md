@@ -58,4 +58,11 @@ python tools/check_publication.py .
 
 Tests use temporary state and offline providers. CI runs them, the publication check and an installed-package smoke test on Windows and Ubuntu for every push and pull request. Review [publication checks](docs/publication-checks.md) before staging a release: inside Git, the checker examines index blobs, not uncommitted replacements of staged files.
 
-See [architecture and repository decision](docs/architecture.md) for boundaries, migration intent and why this reusable technology has a separate home.
+See [architecture](docs/architecture.md) for boundaries and [client integration](docs/client-integration.md) for the client layer and why multi-agent-mod is generated from this repository.
+
+## Generated multi-agent package
+
+Run `python tools/export_mod.py <empty-directory>` from the harness checkout.
+The exporter selects tracked files from its allowlist, applies the overlays
+under `tools/mod/`, and prints a JSON summary. Edit the harness and overlays;
+the generated package must not be maintained as a second source tree.

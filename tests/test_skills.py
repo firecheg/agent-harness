@@ -11,6 +11,8 @@ import re
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+IS_HARNESS = (ROOT / "tools" / "export_mod.py").is_file()
+EXPECTED_SKILLS = {"multi-agent", "shared-harness"} if IS_HARNESS else {"multi-agent"}
 SKILLS = sorted(p for p in (ROOT / "skills").iterdir() if (p / "SKILL.md").is_file())
 TEXTS = {p: p.read_text(encoding="utf-8") for skill in SKILLS for p in skill.rglob("*.md")}
 # A command is only something written as one: at the start of a line (code
@@ -32,7 +34,7 @@ def _choices(module):
 
 class SkillStructureTests(unittest.TestCase):
     def test_skills_are_bundled_with_valid_frontmatter(self):
-        self.assertEqual({p.name for p in SKILLS}, {"multi-agent", "shared-harness"})
+        self.assertEqual({p.name for p in SKILLS}, EXPECTED_SKILLS)
         for skill in SKILLS:
             with self.subTest(skill=skill.name):
                 head = re.match(r"---\n(.*?)\n---\n", (skill / "SKILL.md").read_text(encoding="utf-8"), re.S)
@@ -93,6 +95,8 @@ class SkillReferencesExistTests(unittest.TestCase):
                     self.assertTrue((ROOT / example).is_file())
 
     def test_mcp_tool_table_matches_the_server(self):
+        if not IS_HARNESS:
+            self.skipTest("shared skill is not bundled")
         server = (ROOT / "execution" / "context_server.py").read_text(encoding="utf-8")
         tools = set(re.findall(r"'name':'([a-z_]+)'", server))
         text = TEXTS[ROOT / "skills" / "shared-harness" / "SKILL.md"]

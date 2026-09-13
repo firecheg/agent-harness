@@ -1,6 +1,6 @@
 # Architecture and boundaries
 
-Agent Harness coordinates user-configured command-line agents and shares user-owned resources across clients. Provider names, role assignments and model capabilities belong in configuration; private state does not belong in this repository.
+Agent Harness coordinates user-configured command-line agents. Provider names, role assignments and model capabilities belong in configuration; private state does not belong in this repository.
 
 ```mermaid
 flowchart TD
@@ -14,7 +14,6 @@ flowchart TD
   Task --> Context[Bounded context and cache]
   Context --> Index[Optional external index query]
   Context --> Policy
-  Resources[User-owned shared resources] --> Adapters[Explicit client adapters]
 ```
 
 ## Execution and provider contract
@@ -40,15 +39,3 @@ A recommendation is not a dispatched request. Logs distinguish the recommended l
 Workers receive bounded source selections and questions. Cache identity includes source fingerprints and reasoning policy/decision. External index queries return selected evidence; an index is not assumed fresh without its snapshot metadata. An indexer is optional when explicit source paths are supplied.
 
 Memory is scoped to repository identity, including worktrees, or an explicit workspace identity. Global notes require explicit global reach. Memory is dated context, not an instruction channel. Credentials, transcripts and source corpora are not public examples.
-
-## Shared resources and clients
-
-The resource layer manages references to a user-owned canonical location. A client adapter describes where that client expects resources or server configuration. Changes are explicit, journaled and reversible; rollback must not overwrite a user's later edits. Provider authorization stays with the provider/client.
-
-Native read hooks cover recognized operations and supported clients. They are not a universal sandbox and cannot reliably infer the purpose of a source read. Instructions and observable routing remain part of the operational policy.
-
-## Why a separate repository
-
-The source project supplied graph orchestration and memory. The extracted product also contains common resources, client connections, context budgeting, indexing bridges and reasoning policy. Keeping these as one public technology package gives them a clear installation and extension contract without distributing a maintainer's live setup.
-
-This repository is the home for reusable-core development. The source project remains only as a migration reference; do not maintain two divergent implementations.

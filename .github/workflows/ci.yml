@@ -20,3 +20,24 @@ jobs:
       - run: python -m pip install --no-deps .
       - run: agent-harness --help
       - run: python tools/smoke_installed.py
+      - run: python tools/export_mod.py "${{ runner.temp }}/multi-agent-mod"
+        shell: bash
+      - name: Test exported package in a fresh venv
+        shell: bash
+        run: |
+          set -euo pipefail
+          mod_dir="$RUNNER_TEMP/multi-agent-mod"
+          venv_dir="$RUNNER_TEMP/multi-agent-mod-venv"
+          python -m venv "$venv_dir"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            venv_python="$venv_dir/Scripts/python.exe"
+            venv_agent="$venv_dir/Scripts/agent-harness.exe"
+          else
+            venv_python="$venv_dir/bin/python"
+            venv_agent="$venv_dir/bin/agent-harness"
+          fi
+          (cd "$mod_dir" && "$venv_python" -m unittest discover -s tests -t . -p 'test_*.py')
+          (cd "$mod_dir" && "$venv_python" tools/check_publication.py .)
+          "$venv_python" -m pip install --no-deps "$mod_dir"
+          "$venv_agent" --help
+          (cd "$mod_dir" && "$venv_python" tools/smoke_installed.py)

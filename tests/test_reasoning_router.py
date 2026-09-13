@@ -45,10 +45,10 @@ class ReasoningTests(unittest.TestCase):
                     {'task_kind': 3}, {'dimensions': {'scope': 1}},
                     {'dimensions': None},
                     {'dimensions': {'scope': True, **{k: 0 for k in r.DIMENSIONS if k != 'scope'}}},
-                    {'model': 'gpt-5.6-luna'}):
+                    {'model': 'gpt-model-a'}):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 r.validate_reasoning_config(bad)
-        graph = {**good, 'model': 'gpt-5.6-luna'}
+        graph = {**good, 'model': 'gpt-model-a'}
         self.assertEqual(r.validate_reasoning_config(graph, allow_model=True), graph)
         with self.assertRaises(ValueError):
             r.validate_reasoning_config({**good, 'model': False}, allow_model=True)
@@ -73,7 +73,7 @@ class ReasoningTests(unittest.TestCase):
         self.assertEqual(unknown['status'], 'unknown_model')
         self.assertIsNone(unknown['effective'])
         with self.assertRaises(ValueError):
-            r.route(False, 'gpt-5.6-luna')
+            r.route(False, 'gpt-model-a')
         with self.assertRaises(ValueError):
             r.route('codex', False)
 
@@ -91,12 +91,12 @@ class ReasoningTests(unittest.TestCase):
                          ['-p', 'prompt', '--effort', 'medium', '--', '--effort=max'])
 
     def test_model_selector_parser_and_override(self):
-        args = ['exec', '-c', 'model="gpt-5.6-luna"', '--model=gpt-5.6-luna', '--', '--model', 'prompt']
-        self.assertEqual(r.model_from_args(args, 'codex'), 'gpt-5.6-luna')
+        args = ['exec', '-c', 'model="gpt-model-a"', '--model=gpt-model-a', '--', '--model', 'prompt']
+        self.assertEqual(r.model_from_args(args, 'codex'), 'gpt-model-a')
         with self.assertRaises(ValueError):
-            r.model_from_args(['exec','-c','model=gpt-5.5','--model=gpt-5.6-luna'], 'codex')
-        replaced = r.replace_model_args(args, 'codex', 'gpt-6-astra')
-        self.assertEqual(r.model_from_args(replaced, 'codex'), 'gpt-6-astra')
+            r.model_from_args(['exec','-c','model=gpt-5.5','--model=gpt-model-a'], 'codex')
+        replaced = r.replace_model_args(args, 'codex', 'gpt-model-b')
+        self.assertEqual(r.model_from_args(replaced, 'codex'), 'gpt-model-b')
         self.assertEqual(replaced[-2:], ['--model', 'prompt'])
 
 
