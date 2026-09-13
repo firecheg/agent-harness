@@ -28,7 +28,7 @@ _PRESET_KEYS = {"name", "cli", "vendor", "detect", "provider", "effort_levels",
                 "sandbox_modes", "checked", "notes"}
 _ANSWER_KEYS = {"agents", "reviewers", "review_policy", "roles", "role_bindings",
                 "memory_k", "memory_max_chars", "timeout"}
-_AGENT_KEYS = {"preset", "model", "role", "description", "author_identity", "effort", "path"}
+_AGENT_KEYS = {"preset", "model", "role", "description", "author_identity", "effort", "path", "env"}
 
 
 class SetupError(ValueError):
@@ -132,6 +132,17 @@ def build(answers, presets=None, detected=None):
         if existing and existing != binary:
             raise SetupError(f"agents.{alias}: {name} already uses {existing}; one binary per preset")
         provider["_bin"] = binary
+        overrides = spec.get("env", {})
+        if not isinstance(overrides, dict):
+            raise SetupError(f"agents.{alias}.env must map variable names to values or ${{NAME}} references")
+        merged = {**preset["provider"].get("env", {}), **provider.get("_env_override", {})}
+        for key, value in overrides.items():
+            if key in provider.get("_env_override", {}) and provider["_env_override"][key] != value:
+                raise SetupError(f"agents.{alias}.env.{key} conflicts with another {name} agent")
+            merged[key] = value
+        provider["_env_override"] = {**provider.get("_env_override", {}), **overrides}
+        if merged:
+            provider["env"] = merged
         levels = spec.get("effort", preset.get("effort_levels", []))
         if not isinstance(levels, list) or any(level not in LEVELS for level in levels):
             raise SetupError(f"agents.{alias}.effort must list levels from {', '.join(LEVELS)}")
@@ -148,6 +159,7 @@ def build(answers, presets=None, detected=None):
                            "author_identity": spec.get("author_identity", alias)}
     for provider in providers.values():
         provider.pop("_bin", None)
+        provider.pop("_env_override", None)
 
     config = {"providers": providers, "agents": profiles,
               "reviewers": answers.get("reviewers", {}),

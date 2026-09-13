@@ -409,6 +409,9 @@ def resolve(agent):
     try:
         provider, model, spec = REGISTRY.resolve(agent)
         argv = REGISTRY.command(agent, run="probe")
+        # A backend whose credential variable is unset cannot answer; treat it
+        # as not installed so roles and reviewer selection skip it up front.
+        REGISTRY.environment(provider, model)
     except ProviderConfigError as exc:
         raise AgentError(str(exc)) from exc
     exe = shutil.which(argv[0])
@@ -926,10 +929,13 @@ def cmd_doctor(a):
     print(f"vault     {MEM}" + ("   (bundled seed — set AGENT_HARNESS_MEMORY to keep notes"
                                 " out of the clone)" if MEM == HOME / "memory" else ""))
     for name, profile in CFG["agents"].items():
-        exe = installed(name)
+        try:
+            exe, why = resolve(name)[0], None
+        except AgentError as e:
+            exe, why = None, str(e)
         provider, model, spec = REGISTRY.resolve(name)
         print(f"{'OK  ' if exe else 'MISS'} {name:8} provider={provider} model={model}"
-             f" ({exe or 'command not found on PATH'})")
+             f" ({exe or why})")
         print(f"       role: {profile['role']}" + (f" — {profile['description']}" if profile.get('description') else ""))
         print(f"       reviewed by: {REGISTRY.reviewer_candidates(name)}  (never the same author identity)")
     if a.deep:

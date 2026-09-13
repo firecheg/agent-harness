@@ -89,6 +89,12 @@ def invoke(prompt, run, config, registry=None, cwd=None):
     timeout = config.get("timeout_seconds", spec.timeout_seconds)
     if type(timeout) is not int or timeout <= 0:
         raise ValueError("timeout_seconds must be a positive integer")
+    try:
+        env = registry.environment(provider, model)
+    except ProviderConfigError as exc:
+        metadata.update(status="failed", error=str(exc))
+        (run / "argv.json").write_text(json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8")
+        raise
     stdin_text = prompt
     if spec.input == "file":
         # The CLI takes the prompt as an argument naming this file; stdin is
@@ -98,7 +104,7 @@ def invoke(prompt, run, config, registry=None, cwd=None):
     try:
         # Passing ``input`` asks subprocess to create and close stdin.  Giving
         # stdin=PIPE as well is rejected by Python before the provider starts.
-        proc = subprocess.run(argv, input=stdin_text, cwd=cwd, capture_output=True,
+        proc = subprocess.run(argv, input=stdin_text, cwd=cwd, env=env, capture_output=True,
                               text=True, encoding="utf-8", errors="replace",
                               timeout=timeout, shell=False)
     except (OSError, subprocess.TimeoutExpired) as exc:
