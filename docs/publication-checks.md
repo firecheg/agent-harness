@@ -8,4 +8,4 @@ Additional private identifiers can be supplied with repeated `--deny-text` argum
 
 Run `python -m unittest tests.test_publication` for the checker regressions, including staged-versus-working-tree differences, forced tracked runtime data, standard private-key formats, binary data and symlink entries. The default application tests must use only deterministic offline providers and isolated temporary state.
 
-The GitHub Actions workflow is configured for Windows and Ubuntu. A workflow definition is not evidence that either remote job has run; the release report records actual local checks separately.
+The GitHub Actions workflow runs the test suite, this checker and an installed-package smoke test on Windows and Ubuntu for every push and pull request. Use the result of an actual run as release evidence, not the workflow definition.

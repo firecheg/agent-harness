@@ -51,4 +51,4 @@ Native read hooks cover recognized operations and supported clients. They are no
 
 The source project supplied graph orchestration and memory. The extracted product also contains common resources, client connections, context budgeting, indexing bridges and reasoning policy. Keeping these as one public technology package gives them a clear installation and extension contract without distributing a maintainer's live setup.
 
-This repository is the intended home for future reusable-core development. The source installation is retained as a migration reference; it is not modified by preparing this release. Avoid maintaining two divergent implementations after migration.
+This repository is the home for reusable-core development. The source project remains only as a migration reference; do not maintain two divergent implementations.

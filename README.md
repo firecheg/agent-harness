@@ -56,8 +56,6 @@ python -m unittest discover -s tests -t . -p "test_*.py"
 python tools/check_publication.py .
 ```
 
-Tests use temporary state and offline providers. Review [publication checks](docs/publication-checks.md) before staging a release: inside Git, the checker examines index blobs, not uncommitted replacements of staged files. The configured Windows/Ubuntu CI matrix is not a claim that remote jobs have already passed.
+Tests use temporary state and offline providers. CI runs them, the publication check and an installed-package smoke test on Windows and Ubuntu for every push and pull request. Review [publication checks](docs/publication-checks.md) before staging a release: inside Git, the checker examines index blobs, not uncommitted replacements of staged files.
 
-See [architecture and repository decision](docs/architecture.md) for boundaries, migration intent and why this reusable technology has a separate home. The existing personal installation is not migrated by this source export.
-
-See [local validation results](docs/validation.md) for completed checks and their limits.
+See [architecture and repository decision](docs/architecture.md) for boundaries, migration intent and why this reusable technology has a separate home.
