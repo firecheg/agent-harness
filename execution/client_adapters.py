@@ -140,10 +140,16 @@ def _validate_state_paths(state, home, shared):
         _safe_path(op['path'], home, 'managed adapter path')
 
 
-def _server(python, mam):
+def _server(python, mam, environ=None):
+    environ = os.environ if environ is None else environ
+    env = {'AGENT_HARNESS_HOME': str(mam)}
+    for key in ('AGENT_HARNESS_CONFIG', 'AGENT_HARNESS_MEMORY', 'AGENT_HARNESS_SHARED'):
+        value = environ.get(key)
+        if value:
+            env[key] = value
     return {'command': str(python),
             'args': ['-X', 'utf8', str(Path(mam) / 'execution/context_server.py')],
-            'env': {'AGENT_HARNESS_HOME': str(mam)}}
+            'env': env}
 
 
 def _hook_command(python, mam):
@@ -202,7 +208,7 @@ def issues(shared, allow_partial=False, home=None):
     return problems
 
 
-def configure(home, shared, mam, python, clients=None):
+def configure(home, shared, mam, python, clients=None, environ=None):
     home, shared, mam = (Path(p).resolve() for p in (home, shared, mam))
     _safe_path(shared, home, 'adapter state directory')
     resolved = _resolve_clients(shared, clients)
@@ -218,7 +224,7 @@ def configure(home, shared, mam, python, clients=None):
         return previous
     if previous.get('status') == 'applying':
         rollback(shared, home)
-    server = _server(python, mam)
+    server = _server(python, mam, environ)
     hook_command = _hook_command(python, mam)
     json_ops, fragment_ops = [], []
     for name, entry in resolved.items():
