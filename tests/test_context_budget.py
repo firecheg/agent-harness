@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-spec = importlib.util.spec_from_file_location('context_budget', Path(__file__).parent / 'execution/context_budget.py')
+spec = importlib.util.spec_from_file_location('context_budget', Path(__file__).resolve().parents[1] / 'execution/context_budget.py')
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 

@@ -4,7 +4,7 @@ import tempfile
 import unittest
 
 
-spec = importlib.util.spec_from_file_location("read_gate", Path(__file__).parent / "execution/read_gate.py")
+spec = importlib.util.spec_from_file_location("read_gate", Path(__file__).resolve().parents[1] / "execution/read_gate.py")
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 

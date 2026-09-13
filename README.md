@@ -52,7 +52,7 @@ Graphify and Spec Kit are optional external tools. Index snapshots require prove
 ## Development and publication
 
 ```sh
-python -m unittest discover -s . -p "test_*.py"
+python -m unittest discover -s tests -t . -p "test_*.py"
 python tools/check_publication.py .
 ```
 
