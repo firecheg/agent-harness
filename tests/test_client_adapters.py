@@ -8,12 +8,12 @@ from unittest.mock import patch
 from ctypes import wintypes
 
 spec = importlib.util.spec_from_file_location(
-    'client_adapters', Path(__file__).parent / 'execution/client_adapters.py')
+    'client_adapters', Path(__file__).resolve().parents[1] / 'execution/client_adapters.py')
 m = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 
 shared_spec = importlib.util.spec_from_file_location(
-    'shared_harness_for_adapter_tests', Path(__file__).parent / 'execution/shared_harness.py')
+    'shared_harness_for_adapter_tests', Path(__file__).resolve().parents[1] / 'execution/shared_harness.py')
 shared_module = importlib.util.module_from_spec(shared_spec)
 shared_spec.loader.exec_module(shared_module)
 

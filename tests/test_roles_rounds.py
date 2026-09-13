@@ -10,7 +10,7 @@ import types
 import unittest
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).parent / "execution"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "execution"))
 import mam
 
 

@@ -5,7 +5,7 @@ import tempfile
 import unittest
 
 spec = importlib.util.spec_from_file_location(
-    'shared_harness', Path(__file__).parent / 'execution/shared_harness.py')
+    'shared_harness', Path(__file__).resolve().parents[1] / 'execution/shared_harness.py')
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
