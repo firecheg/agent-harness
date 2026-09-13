@@ -29,7 +29,7 @@ agent-harness ask demo-worker "Explain what this demo does" --task-kind lookup
 
 The bundled demo is a deterministic local program, not a language model. It exercises the execution path without credentials or paid calls. Run commands from the project you want to work on; local invocation artifacts belong in that project's ignored `.mam/` directory. Installation does not register or modify clients.
 
-Configure a real provider explicitly with `AGENT_HARNESS_CONFIG`. Do not put credentials or private configuration in this repository. See [provider configuration](docs/providers.md) for command templates, role bindings and capability declarations.
+To connect the agent CLIs you actually use (Claude Code, Codex, Gemini, Antigravity, or your own), run the cold start: `agent-harness setup detect`, answer which models you use and who reviews whom, then `agent-harness setup write answers.json` — see [setup](docs/setup.md). It writes `~/.agent-harness/config.json`; point `AGENT_HARNESS_CONFIG` at it. Do not put credentials or private configuration in this repository. See [provider configuration](docs/providers.md) for command templates, role bindings and capability declarations.
 
 ## Connect a client
 

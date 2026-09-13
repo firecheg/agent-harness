@@ -1043,6 +1043,31 @@ def cmd_init(a):
               f"{first['review']}) — that is self-review, and every graph using both will be rejected")
 
 
+def cmd_setup(a):
+    """Cold start: report installed CLIs, or write config and roles from answers."""
+    import cold_start
+    if a.action == "detect":
+        print(json.dumps(cold_start.detect(), ensure_ascii=False, indent=2))
+        return
+    if a.action == "presets":
+        print(json.dumps({name: {k: p.get(k) for k in ("cli", "vendor", "effort_levels", "sandbox_modes",
+                                                        "checked", "notes")}
+                          for name, p in cold_start.load_presets().items()}, ensure_ascii=False, indent=2))
+        return
+    if not a.answers:
+        sys.exit("setup write needs an answers JSON file")
+    answers = json.loads(Path(a.answers).read_text(encoding="utf-8"))
+    config_out = Path(a.config_out) if a.config_out else Path.home() / ".agent-harness" / "config.json"
+    roles_out = Path(a.roles_out) if a.roles_out else ROLES_FILE
+    try:
+        summary = cold_start.write(answers, config_out, roles_out, force=a.force)
+    except cold_start.SetupError as e:
+        sys.exit(f"setup: {e}")
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    print(f"\nNext: set AGENT_HARNESS_CONFIG={config_out} for your shell and MCP clients, "
+          f"then run `agent-harness doctor --deep`.", file=sys.stderr)
+
+
 def cmd_graph(a):
     spec = json.loads(Path(a.spec if os.sep in a.spec or a.spec.endswith(".json")
                            else HOME / "graphs" / f"{a.spec}.json").read_text(encoding="utf-8"))
@@ -1134,6 +1159,16 @@ def main():
     p.add_argument("--role", action="append", metavar="NAME=agent[,agent]",
                    help="any other role a graph names, e.g. --role prosecutor=a,b")
     p.set_defaults(fn=cmd_init)
+
+    p = sub.add_parser("setup", help="cold start: detect CLIs, list presets, write config from answers")
+    p.add_argument("--config", dest="config", default=argparse.SUPPRESS,
+                   help="explicit provider/role configuration JSON")
+    p.add_argument("action", choices=["detect", "presets", "write"])
+    p.add_argument("answers", nargs="?", help="answers JSON (write)")
+    p.add_argument("--config-out", help="default ~/.agent-harness/config.json")
+    p.add_argument("--roles-out", help="default: the roles file init uses")
+    p.add_argument("--force", action="store_true", help="overwrite existing files")
+    p.set_defaults(fn=cmd_setup)
 
     p = sub.add_parser("graph", help="run a graph spec")
     p.add_argument("--config", dest="config", default=argparse.SUPPRESS,

@@ -18,8 +18,13 @@ from dataclasses import dataclass
 
 LEVELS = ("low", "medium", "high", "xhigh", "max")
 _TOKEN = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
-_ALLOWED_TOKENS = {"python", "package_dir", "model", "effort", "run", "provider", "sandbox"}
+_ALLOWED_TOKENS = {"python", "package_dir", "model", "effort", "run", "provider", "sandbox", "prompt_file"}
 _OUTPUTS = {"text", "json", "json_field"}
+# stdin: the prompt is written to the process's standard input.
+# file: the prompt is written to <run>/prompt.md, passed as {prompt_file}, and
+# stdin stays empty — for CLIs that only accept the prompt as an argument.
+_INPUTS = {"stdin", "file"}
+PROMPT_FILE = "prompt.md"
 
 
 class ProviderConfigError(ValueError):
@@ -75,6 +80,7 @@ class ProviderSpec:
     models: dict[str, tuple[str, ...]]
     author_identity: str
     timeout_seconds: int
+    input: str = "stdin"
 
     def capabilities(self, model: str | None = None):
         selected = model or self.default_model
@@ -112,8 +118,14 @@ def validate_config(config):
             raise ProviderConfigError(f"providers.{name}: unknown fields: {', '.join(sorted(extra))}")
         argv = _check_tokens(_string_list(raw.get("argv"), f"providers.{name}.argv", nonempty=True),
                              f"providers.{name}.argv")
-        if raw.get("input", "stdin") != "stdin":
-            raise ProviderConfigError(f"providers.{name}.input must be 'stdin'")
+        input_mode = raw.get("input", "stdin")
+        if input_mode not in _INPUTS:
+            raise ProviderConfigError(f"providers.{name}.input must be 'stdin' or 'file'")
+        mentions_file = any("{prompt_file}" in item for item in argv)
+        if input_mode == "file" and not mentions_file:
+            raise ProviderConfigError(f"providers.{name}: input 'file' requires {{prompt_file}} in argv")
+        if input_mode == "stdin" and mentions_file:
+            raise ProviderConfigError(f"providers.{name}: {{prompt_file}} requires input 'file'")
         output = raw.get("output", "text")
         if output not in _OUTPUTS:
             raise ProviderConfigError(f"providers.{name}.output must be text, json, or json_field")
@@ -153,7 +165,7 @@ def validate_config(config):
         if default_sandbox and not sandbox_args:
             raise ProviderConfigError(f"providers.{name}.default_sandbox requires sandbox_args")
         normalized["providers"][name] = {
-            "argv": argv, "input": "stdin", "output": output,
+            "argv": argv, "input": input_mode, "output": output,
             "output_field": output_field, "model_args": model_args,
             "effort_args": effort_args, "sandbox_args": sandbox_args,
             "default_sandbox": default_sandbox, "models": models,
@@ -251,7 +263,8 @@ class ProviderRegistry:
                             output=raw["output"], output_field=raw.get("output_field"),
                             default_model=raw["default_model"], models=raw["models"],
                             author_identity=raw["author_identity"],
-                            timeout_seconds=raw["timeout_seconds"])
+                            timeout_seconds=raw["timeout_seconds"],
+                            input=raw.get("input", "stdin"))
 
     def resolve(self, alias):
         profile = self.profile(alias)
@@ -299,7 +312,8 @@ class ProviderRegistry:
         values = {"python": sys.executable,
                   "package_dir": str(Path(__file__).resolve().parents[1]),
                   "model": model or "", "effort": effort or "", "run": str(run),
-                  "provider": provider, "sandbox": sandbox or ""}
+                  "provider": provider, "sandbox": sandbox or "",
+                  "prompt_file": str(Path(run) / PROMPT_FILE)}
         return _TOKEN.sub(lambda match: values[match.group(1)], value)
 
     def command(self, alias, run, model=None, effort=None, sandbox=None):

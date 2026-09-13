@@ -15,7 +15,7 @@ for _p in (_HERE, _HERE.parent):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-from providers import ProviderConfigError, ProviderRegistry, load_config
+from providers import PROMPT_FILE, ProviderConfigError, ProviderRegistry, load_config
 from reasoning_router import assessment_text, route, validate_reasoning_config
 
 
@@ -89,10 +89,16 @@ def invoke(prompt, run, config, registry=None, cwd=None):
     timeout = config.get("timeout_seconds", spec.timeout_seconds)
     if type(timeout) is not int or timeout <= 0:
         raise ValueError("timeout_seconds must be a positive integer")
+    stdin_text = prompt
+    if spec.input == "file":
+        # The CLI takes the prompt as an argument naming this file; stdin is
+        # still created and closed empty so a CLI that also polls it cannot hang.
+        (run / PROMPT_FILE).write_text(prompt, encoding="utf-8")
+        stdin_text = ""
     try:
         # Passing ``input`` asks subprocess to create and close stdin.  Giving
         # stdin=PIPE as well is rejected by Python before the provider starts.
-        proc = subprocess.run(argv, input=prompt, cwd=cwd, capture_output=True,
+        proc = subprocess.run(argv, input=stdin_text, cwd=cwd, capture_output=True,
                               text=True, encoding="utf-8", errors="replace",
                               timeout=timeout, shell=False)
     except (OSError, subprocess.TimeoutExpired) as exc:

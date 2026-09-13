@@ -1,6 +1,7 @@
 """Run the bundled demo through an already-installed Agent Harness package."""
 
 from pathlib import Path
+import json
 import os
 import subprocess
 import sys
@@ -34,6 +35,12 @@ def main():
         if doctor.returncode or not all(f"'{name}'" in graphs for name in ("build", "build-2r", "court", "research")):
             raise SystemExit("installed package does not ship the bundled graphs:\n" + (doctor.stderr or doctor.stdout))
         print(graphs)
+        presets = subprocess.run([sys.executable, "-m", "mam", "setup", "presets"],
+                                 cwd=root, env=env, capture_output=True, text=True,
+                                 encoding="utf-8", shell=False, timeout=30)
+        if presets.returncode or not {"claude", "codex", "gemini", "agy"} <= set(json.loads(presets.stdout or "{}")):
+            raise SystemExit("installed package does not ship the CLI presets:\n" + (presets.stderr or presets.stdout))
+        print("presets", sorted(json.loads(presets.stdout)))
 
 
 if __name__ == "__main__":
