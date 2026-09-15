@@ -74,7 +74,7 @@ class HarnessTests(unittest.TestCase):
 
         def wait(*files, timeout=0):
             with redirect_stdout(io.StringIO()) as buf, self.assertRaises(SystemExit) as e:
-                mam.cmd_wait(argparse.Namespace(files=[str(f) for f in files], timeout=timeout, lines=5))
+                mam.cmd_wait(argparse.Namespace(files=[str(f) for f in files], timeout=timeout))
             return buf.getvalue(), e.exception.code
 
         with tempfile.TemporaryDirectory() as tmp, patch.object(mam, "RUNS", Path(tmp) / ".mam"):

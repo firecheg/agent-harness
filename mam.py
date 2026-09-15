@@ -958,22 +958,15 @@ def cmd_doctor(a):
           f"(bundled; pass a path to run your own)")
 
 
-def head(path, lines=5):
+def head(path):
     text = path.read_text(encoding="utf-8", errors="replace")
     body = [line[:300] for line in text.splitlines() if line.strip()]
-    more = f"  (+{len(body) - lines} lines)" if len(body) > lines else ""
-    return f"== {display_path(path.resolve())}{more}\n" + "\n".join(body[:lines])
+    more = f"  (+{len(body) - 5} lines)" if len(body) > 5 else ""
+    return f"== {display_path(path.resolve())}{more}\n" + "\n".join(body[:5])
 
 
 def deliver(out, produce):
-    """Without --out the answer goes to stdout as before. With it the full
-    answer lands in the file and stdout gets only its head: a coordinator
-    re-sends its whole history on every step, so a transcript printed into
-    that history is paid for again on each later call.
-
-    The file appears only when the run is over (a temp file renamed into
-    place), and a failure is written into it too, so `wait` never hangs on a
-    run that died."""
+    """--out: full answer to a file (failures too, renamed in when done), head to stdout."""
     if not out:
         print(produce())
         return
@@ -999,15 +992,16 @@ def cmd_wait(a):
     deadline = time.monotonic() + a.timeout
     while not all(p.exists() for p in paths) and time.monotonic() < deadline:
         time.sleep(2)
-    pending = [p for p in paths if not p.exists()]
-    failed = False
+    code = 0
     for p in paths:
-        if p in pending:
+        if not p.exists():
             print(f"== {display_path(p.resolve())}  still running after {a.timeout}s")
+            code = 2
             continue
-        print(head(p, a.lines))
-        failed |= p.read_text(encoding="utf-8", errors="replace").startswith("FAILED: ")
-    sys.exit(2 if pending else 1 if failed else 0)
+        print(head(p))
+        if p.read_text(encoding="utf-8", errors="replace").startswith("FAILED: "):
+            code = max(code, 1)
+    sys.exit(code)
 
 
 def cmd_ask(a):
@@ -1206,7 +1200,6 @@ def main():
     p.add_argument("files", nargs="+")
     p.add_argument("--timeout", type=int, default=600,
                    help="seconds; exit 2 if any run is still going (default 600)")
-    p.add_argument("--lines", type=int, default=5, help="non-empty lines to print per answer")
     p.set_defaults(fn=cmd_wait)
 
     p = sub.add_parser("init", help="record who fills each graph role on this machine")
