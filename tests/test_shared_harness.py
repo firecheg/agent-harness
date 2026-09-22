@@ -17,9 +17,11 @@ def _is_junction(path):
 class MigrationTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.home = Path(self.tmp.name) / 'home'
+        # resolve(): Windows runners hand out 8.3 temp paths (RUNNER~1), the code writes long ones
+        root = Path(self.tmp.name).resolve()
+        self.home = root / 'home'
         self.shared = self.home / '.agent-harness'
-        self.mam = Path(self.tmp.name) / 'mam'
+        self.mam = root / 'mam'
         self.mam.mkdir()
         self.clients = {
             'alpha': {
