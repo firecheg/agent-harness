@@ -62,9 +62,9 @@ two configured accounts are genuinely independent.
 ## Role prompts
 
 Keep global `AGENTS.md` minimal; put worker instructions in top-level
-`role_prompts`, mapping a role to an ordered, non-empty list of Markdown files:
+`role_prompts`, mapping a role to an ordered, non-empty list of Markdown files.
 
-The repository templates are `examples/shared-rules.md` and
+The role templates are
 `examples/rules/{orchestrator,worker,coder,qa,reviewer,reader,researcher}.md`.
 The demo config uses those relative paths. For an installed config, place the
 role files beside it under `rules/` or adjust the paths.
