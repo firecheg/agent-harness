@@ -3,7 +3,7 @@
     "skills_dir": ".claude/skills",
     "instructions_file": ".claude/AGENTS.md",
     "include_file": ".claude/CLAUDE.md",
-    "include_template": "@{path}\n",
+    "include_template": "@{path}\n@{orchestrator_path}\n",
     "mcp": {"format": "json", "path": ".claude.json", "keys": ["mcpServers", "agent_harness"]},
     "hook": {"format": "json", "path": ".claude/settings.json", "keys": ["hooks", "PreToolUse"], "matcher": "Read|Bash"}
   },

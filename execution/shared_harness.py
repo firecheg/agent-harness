@@ -154,8 +154,16 @@ def apply(home, shared, mam, rules, clients=None):
     backup.mkdir(parents=True)
     save(backup / 'plan.json', inventory)
     core = shared / 'rules/AGENTS.md'
+    templates = mam / 'examples/rules'
+    for source in templates.glob('*.md'):
+        destination = core.parent / source.name
+        content = source.read_text(encoding='utf-8')
+        if destination.exists() and destination.read_text(encoding='utf-8') != content:
+            raise ValueError(f'pre-existing rule differs: {destination}')
     core.parent.mkdir(parents=True, exist_ok=True)
     core.write_text(rules, encoding='utf-8')
+    for source in templates.glob('*.md'):
+        (core.parent / source.name).write_text(source.read_text(encoding='utf-8'), encoding='utf-8')
     # Build and verify the canonical shared catalog first; client paths are
     # not touched until every canonical skill is in place and consistent.
     for name, entry in inventory['skills'].items():
@@ -222,7 +230,9 @@ def apply(home, shared, mam, rules, clients=None):
                 replace(home / client_entry['instructions_file'], 'hardlink', core)
             if 'include_file' in client_entry:
                 replace(home / client_entry['include_file'], 'file',
-                       text=client_entry['include_template'].format(path=core.as_posix()))
+                       text=client_entry['include_template'].format(
+                           path=core.as_posix(),
+                           orchestrator_path=(core.parent / 'orchestrator.md').as_posix()))
         state['status'] = 'active'
         save(state_path, state)
     except Exception:

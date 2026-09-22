@@ -15,8 +15,11 @@ python -m execution.shared_harness plan `
   --clients examples/clients-example.json
 ```
 
-Apply the shared rules and link the configured skill directories. The operation
-is reversible and records its transaction under the selected shared directory:
+Apply the minimal shared `AGENTS.md`, the bundled `examples/rules/*.md` role and
+coordinator templates, and link configured skill directories. The Claude
+example's `CLAUDE.md` imports both `AGENTS.md` and `orchestrator.md`;
+`ROLE:` tasks follow worker files instead. The operation is reversible and
+records its transaction under the selected shared directory:
 
 ```powershell
 python -m execution.shared_harness apply `
@@ -26,6 +29,11 @@ python -m execution.shared_harness apply `
   --rules examples/shared-rules.md `
   --clients examples/clients-example.json
 ```
+
+An already-active installation remains unchanged on repeat `apply`; run
+`rollback` and then `apply` to install a newer template set. Existing custom
+rule files that differ from bundled templates stop the new install for manual
+resolution.
 
 Register MCP and hook settings for the same explicit clients:
 
