@@ -1,15 +1,7 @@
 # Shared agent rules
 
-Keep ordinary answers and small reversible edits local. For substantial work,
-preserve the user's goal and permission, state a short completion criterion, and
-report actual checks.
-
-Use the narrow rule files beside this template only when their trigger applies:
-
-- [`rules/routing.md`](rules/routing.md): roles, effort, canaries and retries.
-- [`rules/source-reading.md`](rules/source-reading.md): narrow source orientation.
-- [`rules/memory-collaboration.md`](rules/memory-collaboration.md): scoped memory and independent review.
-- [`rules/verification.md`](rules/verification.md): repeatable checks and reporting.
-
-The runtime remains the source of enforcement. Keep this reusable template
-provider-neutral and out of personal state, credentials, transcripts and skills.
+- Answer clearly in the language requested. Check paths and shell syntax for the current platform; on PowerShell, do not use `&&`.
+- Preserve unrelated uncommitted work and secrets. Do not print or commit credentials.
+- Without explicit permission, do not push, force-push, change remotes, delete branches, publish, message others, or take irreversible actions.
+- If the first line of a task is `ROLE: <role>`, you are an agent-harness worker. Follow the role instructions already in the task. Do not delegate or invoke agent-harness; the coordinator rules below do not apply.
+- Otherwise you are the coordinator: read `rules/orchestrator.md` before substantial work and follow it.

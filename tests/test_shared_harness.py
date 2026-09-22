@@ -17,9 +17,11 @@ def _is_junction(path):
 class MigrationTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.home = Path(self.tmp.name) / 'home'
+        # resolve(): Windows runners hand out 8.3 temp paths (RUNNER~1), the code writes long ones
+        root = Path(self.tmp.name).resolve()
+        self.home = root / 'home'
         self.shared = self.home / '.agent-harness'
-        self.mam = Path(self.tmp.name) / 'mam'
+        self.mam = root / 'mam'
         self.mam.mkdir()
         self.clients = {
             'alpha': {
@@ -78,6 +80,37 @@ class MigrationTests(unittest.TestCase):
         self.assertEqual(b.read_text(encoding='utf-8'), 'shared')
         self.assertEqual((self.home / '.alpha/AGENTS.md').read_text(), 'original alpha')
         self.assertEqual((self.home / '.beta/AGENTS.md').read_text(), 'original beta')
+
+    def test_bundled_rules_and_coordinator_import(self):
+        repo = Path(__file__).resolve().parents[1]
+        clients = {
+            'coordinator': {
+                'instructions_file': '.coordinator/AGENTS.md',
+                'include_file': '.coordinator/CLAUDE.md',
+                'include_template': '@{path}\n@{orchestrator_path}\n',
+            }
+        }
+        module.apply(self.home, self.shared, repo, 'core rules', clients)
+        rules = self.shared / 'rules'
+        for name in ('orchestrator', 'worker', 'coder', 'qa', 'reviewer',
+                     'reader', 'researcher', 'routing'):
+            self.assertEqual((rules / f'{name}.md').read_text(encoding='utf-8'),
+                             (repo / 'examples/rules' / f'{name}.md').read_text(encoding='utf-8'))
+        self.assertEqual((self.home / '.coordinator/CLAUDE.md').read_text(),
+                         f'@{(rules / "AGENTS.md").as_posix()}\n'
+                         f'@{(rules / "orchestrator.md").as_posix()}\n')
+        module.rollback(self.home, self.shared)
+        self.assertFalse((self.home / '.coordinator/CLAUDE.md').exists())
+
+    def test_preexisting_rule_conflict_keeps_core_untouched(self):
+        repo = Path(__file__).resolve().parents[1]
+        rules = self.shared / 'rules'
+        rules.mkdir(parents=True)
+        (rules / 'AGENTS.md').write_text('original core', encoding='utf-8')
+        (rules / 'worker.md').write_text('custom worker', encoding='utf-8')
+        with self.assertRaisesRegex(ValueError, 'pre-existing rule differs'):
+            module.apply(self.home, self.shared, repo, 'replacement core', {})
+        self.assertEqual((rules / 'AGENTS.md').read_text(encoding='utf-8'), 'original core')
 
     def test_apply_refuses_skill_conflict_before_writing(self):
         (self.home / '.beta/skills/demo/SKILL.md').write_text('different', encoding='utf-8')

@@ -37,7 +37,23 @@ To connect the agent CLIs you actually use (Claude Code, Codex, Gemini, Antigrav
 
 Resource sharing points to your own canonical files. This project does not bundle a skill catalog or transfer provider credentials between applications.
 
-The [shared rules template](examples/shared-rules.md) carries the operating policy: delegate source orientation and implementation, choose effort per task, limit retries, and report truthful routing status with run references. Adapt it to your configured roles before applying it to clients. These instructions complement runtime checks; they do not create a universal read sandbox.
+The [shared rules template](examples/shared-rules.md) is a minimal `AGENTS.md`: safety basics and a `ROLE:` worker fork. Coordinator policy lives in [orchestrator.md](examples/rules/orchestrator.md); worker instructions are [role files](examples/rules/worker.md) selected by `role_prompts`. The client installer copies the bundled rule files alongside `AGENTS.md`, and the Claude example imports the coordinator file. Keep the global file minimal; these instructions complement runtime checks, not a universal read sandbox.
+
+When `--initiator`, `MAM_INITIATOR`, or a configured environment table identifies
+the coordinator session, its own
+review/spec steps are handed back in-session instead of spawning a duplicate
+CLI. A paused graph prints its run directory; accept the response with
+`agent-harness verdict <run> <file|->`, or use `--no-in-session` for legacy
+subprocess behavior. Reviewer sessions are reused across rounds when the
+provider config enables persistence. `ask` and `review` reuse sessions across
+separate calls only when given the same `--thread` name; without a detected
+coordinator, graph and review calls run through the configured CLIs.
+
+Worker-specific instructions belong in `role_prompts` (Markdown paths in the
+config), not the global `AGENTS.md`. Fresh CLI calls receive `ROLE: <role>`,
+the role files and the task; resumed calls receive the role line and delta.
+Use `ask|review --role` to override the configured agent role. See
+[role prompts](docs/providers.md#role-prompts).
 
 ## Reasoning, identity and evidence
 
