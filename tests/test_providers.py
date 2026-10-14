@@ -59,6 +59,52 @@ class ProviderTests(unittest.TestCase):
         with self.assertRaises(ProviderConfigError):
             validate_config(bad)
 
+    def test_unsupported_effort_is_rejected_before_command_and_subprocess(self):
+        cases = [({"effort": "xhigh"}, ["low", "medium", "high"], "xhigh"),
+                 ({"effort": "max"}, ["low", "medium", "high"], "max"),
+                 ({"task_kind": "incident"}, ["low", "medium", "high"], "xhigh"),
+                 ({"effort": "low"}, [], "low")]
+        for options, levels, selected in cases:
+            with self.subTest(options=options, levels=levels), tempfile.TemporaryDirectory() as tmp:
+                cfg = config()
+                cfg["providers"]["third-party"]["models"]["selected-model"] = {
+                    "supported_effort": levels}
+                registry = ProviderRegistry(cfg)
+                with patch("worker_cli.command", return_value=["offline-mock"]) as command, patch(
+                        "worker_cli.subprocess.run",
+                        return_value=SimpleNamespace(stdout="ok", stderr="", returncode=0)) as process:
+                    with self.assertRaisesRegex(ProviderConfigError,
+                                                f"third-party.*selected-model.*{selected}.*not launched"):
+                        invoke("task", Path(tmp), {"agent": "worker", "model": "selected-model",
+                                                  **options}, registry=registry)
+                    command.assert_not_called()
+                    process.assert_not_called()
+                decision = json.loads((Path(tmp) / "reasoning.json").read_text())
+                self.assertEqual(decision["status"], "unsupported")
+                self.assertEqual(decision["model"], "selected-model")
+                self.assertEqual(decision["selected"], selected)
+                self.assertIsNone(decision["effective"])
+                self.assertFalse((Path(tmp) / "argv.json").exists())
+
+    def test_empty_effort_capabilities_auto_runs_without_effort_or_model_switch(self):
+        cfg = config()
+        cfg["providers"]["third-party"]["models"]["non-reasoning"] = {"supported_effort": []}
+        registry = ProviderRegistry(cfg)
+        with tempfile.TemporaryDirectory() as tmp, patch(
+                "worker_cli.subprocess.run",
+                return_value=SimpleNamespace(stdout="ok", stderr="", returncode=0)) as process:
+            result = invoke("task", Path(tmp), {"agent": "worker", "model": "non-reasoning",
+                                               "effort": "auto"}, registry=registry)
+            process.assert_called_once()
+            argv = process.call_args.args[0]
+            self.assertNotIn("--effort", argv)
+            self.assertEqual(argv[argv.index("--model") + 1], "non-reasoning")
+            self.assertEqual(result["model"], "non-reasoning")
+            decision = json.loads((Path(tmp) / "reasoning.json").read_text())
+            self.assertEqual(decision["supported"], [])
+            self.assertEqual(decision["requested"], "auto")
+            self.assertIsNone(decision["effective"])
+
     def test_role_prompts_fresh_resumed_unknown_and_agent_default(self):
         cfg = config()
         cfg["providers"]["third-party"].update(

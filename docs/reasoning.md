@@ -48,9 +48,22 @@ reasoning cannot override provider, model, budgets or timeouts.
 * `effective`: the effort parameter planned or sent to the CLI. It is not a
   measurement of internal reasoning; the invocation log's argument vector
   proves what was dispatched.
-* `status`: `ok`, `unsupported` (the model does not declare the level) or
-  `unknown_model` (no capability data; no effort flag is sent).
+* `status`: `ok`, `unsupported` (the model does not declare the selected level)
+  or `unknown_model` (no capability data; no effort flag is planned).
 * `reasons`: why, including floors and caps.
+
+An `unsupported` decision rejects dispatch with `ProviderConfigError` before
+building a command or starting a subprocess, even when automatic routing
+selected the unsupported level. The saved `reasoning.json` preserves the
+decision; no new `argv.json` is written. The harness neither lowers the effort
+silently nor switches models. `unknown_model` keeps the existing provider
+validation and dispatch behavior.
+
+An explicitly empty `supported_effort: []` declares a model without reasoning
+effort controls. With `auto`, it may run without an effort flag even though the
+decision has `status: unsupported` and `effective: null`. Any explicit effort
+for that model rejects dispatch. An empty list differs from unknown capability
+data (`supported: null`).
 
 Automatic routing never selects `max`. An explicit `max` is sent only to a
 model whose configured `supported_effort` includes it; the harness cannot know
