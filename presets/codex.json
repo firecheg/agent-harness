@@ -63,5 +63,5 @@
     "danger-full-access"
   ],
   "checked": "codex-cli 0.154 `codex exec --help`; https://developers.openai.com/codex/noninteractive; one-shot call run live 2026-09-13",
-  "notes": "Instructions are read from stdin when no prompt argument is given. Progress goes to stderr; stdout carries only the final agent message. workspace-write has no network; use danger-full-access per node only where a task needs it. Add \"max\" to a model's supported_effort if your model accepts it."
+  "notes": "Instructions are read from stdin when no prompt argument is given. Progress goes to stderr; stdout carries only the final agent message. Network access depends on client sandbox and policy; do not relax sandbox or approval controls to bypass a refusal. Declare supported_effort only for levels verified for both the selected model and installed CLI. API reasoning.mode, reasoning.context, configuration_update and prompt_cache_options are not CLI flags."
 }

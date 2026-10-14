@@ -92,6 +92,11 @@ def invoke(prompt, run, config, registry=None, cwd=None, session_id=None):
     sent_prompt = "\n\n".join([*sections, prompt])
     decision = _decision(config, registry, provider, model, prompt)
     (run / "reasoning.json").write_text(json.dumps(decision, ensure_ascii=False, indent=2), encoding="utf-8")
+    if decision.get("status") == "unsupported" and (
+            decision.get("supported") or decision.get("requested") != "auto"):
+        raise ProviderConfigError(
+            f"{provider}/{model} does not support selected effort {decision.get('selected')}; "
+            "provider not launched")
     argv = command(provider, model, run, decision.get("effective"), registry=registry, agent=agent,
                    sandbox=config.get("sandbox"), session_id=session_id)
     identity = registry.identity(agent) if agent else spec.author_identity
